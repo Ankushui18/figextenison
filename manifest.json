@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "116",
+  "name": "Page Capture",
+  "description": "Capture web pages as editable design layers or code, copied to your clipboard. No account, no login, no network calls.",
+  "version": "1.3.27",
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "128": "icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "default_locale": "en",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; connect-src 'self'; img-src * data:; style-src 'unsafe-inline'; object-src 'none'"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "unlimitedStorage",
+    "scripting",
+    "clipboardWrite",
+    "pageCapture"
+  ],
+  "commands": {
+    "capture_code": {
+      "description": "Capture code"
+    },
+    "capture_page": {
+      "description": "Capture design"
+    },
+    "select_element": {
+      "description": "Select and capture element"
+    }
+  },
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

@@ -1,0 +1,414 @@
+{
+  "productName": {
+    "message": "Page Capture",
+    "description": "Name of the product"
+  },
+  "contactUs": {
+    "message": "contact us",
+    "description": "Contact us text"
+  },
+  "attachModalTitle": {
+    "message": "Recents",
+    "description": "Title for the modal when attaching files"
+  },
+  "createModalTitle": {
+    "message": "Create new file",
+    "description": "Title for the modal when creating files"
+  },
+  "cancelAction": {
+    "message": "Cancel",
+    "description": "Generic cancel button label for in-progress actions"
+  },
+  "cancelButton": {
+    "message": "Cancel",
+    "description": "Button text for cancel buttons, which go back to the previous page"
+  },
+  "closeButton": {
+    "message": "Close",
+    "description": "Button text for close button, which hides the toolbar"
+  },
+  "addToInvite": {
+    "message": "Add to event",
+    "description": "Button text for the button which adds files to the invite"
+  },
+  "figmaDesign": {
+    "message": "Design file",
+    "description": "Button text for the button which opens a Figma design"
+  },
+  "calButtonMore": {
+    "message": "Add more files",
+    "description": "Dropdown to add more files after the initial time"
+  },
+  "calExpandButton": {
+    "message": "$1 more files",
+    "description": "This is the text for the expand button in the file list"
+  },
+  "calExpandButtonCollapse": {
+    "message": "Hide $1 files",
+    "description": "This is the text for the expand button in the file list (when already expanded)"
+  },
+  "modalStatusNoFiles": {
+    "message": "Choose a few files to add.",
+    "description": "When no files are selected, this is the string which instructs the user to select files in the picker."
+  },
+  "modalStatusFilesJoin": {
+    "message": "and",
+    "description": "When more than 1 file is selected, this joins the file names together. Ex. File1 and File2"
+  },
+  "modalStatusFilesSuffix": {
+    "message": "will be added to the event invite.",
+    "description": "When 1 or more files are selected, this text is shown after the file names. Ex. 3 or more files will be added to the event invite."
+  },
+  "calendarLoginModalTitleText": {
+    "message": "Design better meetings",
+    "description": "Title text shown on the login modal, which prompts the user to login with Figma"
+  },
+  "loginModalTitleText": {
+    "message": "Your website on canvas",
+    "description": "Title text shown on the login modal, which prompts the user to login with Figma"
+  },
+  "signedInModalTitleText": {
+    "message": "You’re all set",
+    "description": "Title text shown on the modal when the user has signed in. The user sees their profile, and a sign out button"
+  },
+  "signedInModalSubtext": {
+    "message": "You’ve signed in to $1. To try it out, create a Google Calendar event—you’ll see a few new controls.",
+    "description": "Subtext shown on the modal when the user has signed in. The user sees their profile, and a sign out button"
+  },
+  "logoutButton": {
+    "message": "Sign out",
+    "description": "Text displayed in the button that logs the user out"
+  },
+  "authErrorNetworkTitle": {
+    "message": "Couldn’t connect",
+    "description": "Title of modal displayed when the user could not connect to Figma to login"
+  },
+  "authErrorNetworkDescription": {
+    "message": "You may need to check your connection, then try again. If you keep having trouble, $1.",
+    "description": "Description text displayed when the user could not connect to Figma to login"
+  },
+  "authErrorNetworkRetryButton": {
+    "message": "Try again",
+    "description": "Button text which will retry login"
+  },
+  "authErrorGenericTitle": {
+    "message": "Something’s gone wrong",
+    "description": "Title of modal displayed when login fails for an unknown reason"
+  },
+  "authErrorGenericDescription": {
+    "message": "It looks like we’re having issues—mind trying that again? If you keep having trouble, $1.",
+    "description": "Description text displayed when login fails for an unknown reason"
+  },
+  "authErrorGenericRefreshButton": {
+    "message": "Try again",
+    "description": "Button text which will refresh the page"
+  },
+  "recentFilesErrorTitle": {
+    "message": "Something’s gone wrong",
+    "description": "Title of the modal when we fail to fetch the user's recent files"
+  },
+  "recentFilesErrorDescription": {
+    "message": "It looks like we’re having issues—mind trying that again? If you keep having trouble, $1.",
+    "description": "Description of the modal when we fail to fetch the user's recent files"
+  },
+  "recentFilesErrorRetryButton": {
+    "message": "Try again",
+    "description": "Button text which will try to fetch recent files again"
+  },
+  "createFilesButton": {
+    "message": "Create file",
+    "description": "Create file button"
+  },
+  "createFilesErrorBellText": {
+    "message": "Couldn’t create file",
+    "description": "Text shown in a visual bell when we fail to create a file"
+  },
+  "nameLabel": {
+    "message": "Name",
+    "description": "Name field in the Create new file modal"
+  },
+  "templatesTitle": {
+    "message": "Templates",
+    "description": "Templates header for the templates topbar"
+  },
+  "templatesExpandButton": {
+    "message": "See more",
+    "description": "Show more templates in the templates topbar"
+  },
+  "templatesHideButton": {
+    "message": "See less",
+    "description": "Hide additional templates in the templates topbar"
+  },
+  "calLoadingState": {
+    "message": "Adding files",
+    "description": "Text shown in the calendar invite when we are adding files to the invite"
+  },
+  "searchInput": {
+    "message": "Search files...",
+    "description": "Default search bar text placeholder"
+  },
+  "noFilesFound": {
+    "message": "No files to display.",
+    "description": "Text shown in the file picker when searching for a file yields empty results"
+  },
+  "h2dCaptureTitle": {
+    "message": "Capture",
+    "description": "Title for the HTML to Design capture toolbar"
+  },
+  "h2dCapturePreviewAlt": {
+    "message": "Capture preview",
+    "description": "Alt text for the capture preview thumbnail image"
+  },
+  "h2dCapturePageButton": {
+    "message": "Capture design",
+    "description": "Button text to capture the full page as Figma layers"
+  },
+  "h2dCapturingText": {
+    "message": "Capturing...",
+    "description": "Loading text shown while capturing a page"
+  },
+  "h2dDismissAllButton": {
+    "message": "Discard all",
+    "description": "Button text to discard all captures"
+  },
+  "h2dCaptureCodeButton": {
+    "message": "Capture code",
+    "description": "Action that saves the current tab as an MHTML code capture in the capture tray."
+  },
+  "h2dCaptureCodePermissionRequired": {
+    "message": "Allow page capture access to capture code.",
+    "description": "Shown when the pageCapture permission is missing or revoked."
+  },
+  "h2dCaptureCodeTooLarge": {
+    "message": "This page is too large to capture code.",
+    "description": "Shown when the MHTML archive or its message exceeds the capture size limit."
+  },
+  "h2dCaptureCodeBatchTooLarge": {
+    "message": "These captures are too large to copy together. Remove some captures and try again.",
+    "description": "Shown when a clipboard batch containing MHTML captures exceeds the paste size limit."
+  },
+  "h2dCaptureCodePageChanged": {
+    "message": "The page changed during capture. Please try again.",
+    "description": "Shown when navigation invalidates an in-progress MHTML capture."
+  },
+  "h2dCaptureCodeBusy": {
+    "message": "A capture is still finishing. Please try again shortly.",
+    "description": "Shown when a previous native capture has not finished."
+  },
+  "h2dCaptureCodeUnavailable": {
+    "message": "Code capture is not available on this page.",
+    "description": "Shown for unsupported tabs or missing capture context."
+  },
+  "h2dSelectElementButton": {
+    "message": "Select element",
+    "description": "Button text to select a specific element on the page"
+  },
+  "selectElementToCapture": {
+    "message": "Select an element",
+    "description": "Lead-in copy for the H2D toolbar's element-selection status row, mirroring the `Select element` action button label that opens this mode."
+  },
+  "selectElementToCaptureCompact": {
+    "message": "Select element",
+    "description": "Narrow-viewport variant of `selectElementToCapture`, swapped in below the H2D toolbar's collapse breakpoint so the status row does not clip on small screens."
+  },
+  "selectElementShortcuts": {
+    "message": "<kbd>↑</kbd> <kbd>↓</kbd> to adjust",
+    "description": "Adjust-affordance copy shown after the lead-in in the H2D toolbar's element-selection status row. `<kbd>FOO</kbd>` markers render as keyboard-key chips."
+  },
+  "selectElementShortcutsCompact": {
+    "message": "<kbd>↑</kbd> <kbd>↓</kbd> Adjust",
+    "description": "Narrow-viewport variant of `selectElementShortcuts`, swapped in below the H2D toolbar's collapse breakpoint. `<kbd>FOO</kbd>` markers render as keyboard-key chips."
+  },
+  "h2dSelectElementError": {
+    "message": "Failed to select element",
+    "description": "Error message when element selection fails"
+  },
+  "h2dCapturePageError": {
+    "message": "Failed to capture page",
+    "description": "Error message when capturing the page fails"
+  },
+  "h2dCopyToClipboardButton": {
+    "message": "Copy as design layers",
+    "description": "Button text to copy captures as Figma layers to clipboard"
+  },
+  "h2dCopyCodeToClipboardButton": {
+    "message": "Copy as Code Layer",
+    "description": "Label for copying an MHTML capture from the capture tray."
+  },
+  "h2dCopyButton": {
+    "message": "Copy all",
+    "description": "Button text to copy all captures to clipboard"
+  },
+  "h2dCopiedText": {
+    "message": "Copied to clipboard",
+    "description": "Success text shown after copying to clipboard"
+  },
+  "h2dCopyFailed": {
+    "message": "Failed to copy",
+    "description": "Error text shown when clipboard write fails (e.g. permission denied, focus lost)"
+  },
+  "h2dActionFailed": {
+    "message": "Something went wrong",
+    "description": "Generic fallback error text shown when a toolbar action fails unexpectedly"
+  },
+  "h2dLoadingText": {
+    "message": "Loading...",
+    "description": "Generic loading text"
+  },
+  "h2dDeleteCaptureButton": {
+    "message": "Delete",
+    "description": "Aria label for the button to delete a capture"
+  },
+  "optionsNotLoggedInTitle": {
+    "message": "Not signed in",
+    "description": "Title shown on the options page when the user is not logged in"
+  },
+  "optionsNotLoggedInDescription": {
+    "message": "Open the extension popup to sign in.",
+    "description": "Description shown on the options page when the user is not logged in"
+  },
+  "optionsProfileImageAlt": {
+    "message": "Profile picture",
+    "description": "Alt text for the user's profile image on the options page"
+  },
+  "optionsLoggedInAs": {
+    "message": "Logged in as $1.",
+    "description": "Account label on the permissions screen. $1 is the signed-in user's email address."
+  },
+  "optionsFeatureCaptureTitle": {
+    "message": "Capture your website to canvas",
+    "description": "Title for the webpage capture feature on the options page"
+  },
+  "optionsFeatureCaptureDescription": {
+    "message": "Click the extension icon in your toolbar to capture the current page as design layers. $1",
+    "description": "Description for the webpage capture feature on the options page. $1 is a 'Learn more' link."
+  },
+  "optionsFeatureLearnMore": {
+    "message": "Learn more",
+    "description": "Link text for the 'Learn more' link at the end of a feature description on the options page"
+  },
+  "optionsFeatureCapturePaidPlan": {
+    "message": "Available on paid plans",
+    "description": "Status shown on the options page when the webpage capture feature is unavailable because the user is not on a paid plan"
+  },
+  "optionsFeatureCaptureReauth": {
+    "message": "Please login again to access this feature",
+    "description": "Status shown on the options page when the webpage capture feature is unavailable because the user's plan information is missing and they need to sign in again"
+  },
+  "optionsFileAccessTitle": {
+    "message": "To capture local files, enable this setting on this extension's page:",
+    "description": "Heading shown on the options page when the user tried to capture a local file:// page without file access enabled"
+  },
+  "optionsFileAccessSetting": {
+    "message": "Allow access to file URLs",
+    "description": "Label of the (non-interactive) pill illustrating the Chrome extension setting the user must enable; mirrors the toggle on the extension's details page"
+  },
+  "optionsFileAccessCta": {
+    "message": "Open extension settings",
+    "description": "Button on the options page that opens the extension's details page where the file-access setting can be enabled"
+  },
+  "optionsFileAccessRetry": {
+    "message": "Try again",
+    "description": "Secondary button on the options page that re-checks file access after the user enables it, then closes the tab so they can retry the capture"
+  },
+  "optionsFileAccessRetryHint": {
+    "message": "Local file access still isn't enabled",
+    "description": "Warning banner shown when the user clicks Try again but the file-access setting is still off"
+  },
+  "optionsCapturePermissionsTitle": {
+    "message": "Allow additional permissions from Chrome",
+    "description": "Heading shown before requesting Chrome website and clipboard permissions"
+  },
+  "optionsCapturePermissionsIntro": {
+    "message": "You’ll be asked to approve these permissions:",
+    "description": "Introduces the Chrome permissions required by the extension"
+  },
+  "optionsCapturePermissionsWebsiteTitle": {
+    "message": "Read and change website data",
+    "description": "Name of the Chrome website access permission"
+  },
+  "optionsCapturePermissionsWebsiteDescription": {
+    "message": "$1 allows your website to be read by the extension",
+    "description": "Explains website access. $1 is the emphasized permission name."
+  },
+  "optionsCapturePermissionsClipboardTitle": {
+    "message": "Modify data you copy and paste",
+    "description": "Name of the Chrome clipboard access permission"
+  },
+  "optionsCapturePermissionsClipboardDescription": {
+    "message": "$1 allows your website code to be copied to the clipboard",
+    "description": "Explains clipboard access. $1 is the emphasized permission name."
+  },
+  "optionsCapturePermissionsCta": {
+    "message": "Next",
+    "description": "Requests all capture permissions together, then resumes the originating tab or continues onboarding."
+  },
+  "optionsCapturePermissionsDeniedHint": {
+    "message": "Access wasn't granted",
+    "description": "Warning shown when the user declines the Chrome permission prompt"
+  },
+  "optionsFeatureCalendarDescription": {
+    "message": "Create a new Google calendar event—you’ll see a few new controls.",
+    "description": "Description for the Google Calendar feature on the options page"
+  },
+  "optionsOnboardingTitle": {
+    "message": "Using the extension",
+    "description": "Heading at the top of the extension onboarding reference page"
+  },
+  "optionsOnboardingSubtitle": {
+    "message": "Capture your website and bring it into your design tool as an editable design.",
+    "description": "Subtitle under the onboarding heading summarizing what the extension does"
+  },
+  "optionsOnboardingPinTitle": {
+    "message": "Pin the extension",
+    "description": "Heading for the first onboarding step, which asks the user to pin the extension to their browser toolbar"
+  },
+  "optionsOnboardingPinDescription": {
+    "message": "Pinning keeps it in your toolbar, so you don't have to open the Extensions menu every time.",
+    "description": "Body copy for the first onboarding step explaining why to pin the extension"
+  },
+  "optionsOnboardingPinImageAlt": {
+    "message": "The Chrome Extensions menu with the extension's pin button highlighted",
+    "description": "Alt text for the illustration on the first onboarding step"
+  },
+  "optionsOnboardingCaptureTitle": {
+    "message": "Capture code or design",
+    "description": "Heading for the second onboarding step, which explains capturing code or designs"
+  },
+  "optionsOnboardingCaptureDescription": {
+    "message": "Capture your code and paste onto the canvas for a new code layer. You can also capture your designs and paste them to the canvas.",
+    "description": "Body copy for the second onboarding step explaining code and design captures"
+  },
+  "optionsOnboardingCaptureImageAlt": {
+    "message": "The capture toolbar overlaid on a website",
+    "description": "Alt text for the illustration on the second onboarding step"
+  },
+  "optionsOnboardingPasteTitle": {
+    "message": "Edit your design",
+    "description": "Heading for the third onboarding step, which describes editing captures in Figma"
+  },
+  "optionsOnboardingPasteDescription": {
+    "message": "Once you’ve pasted into your design tool, you can work with code layers and designs on the canvas.",
+    "description": "Body copy for the third onboarding step explaining what to do after pasting"
+  },
+  "optionsOnboardingPasteImageAlt": {
+    "message": "A captured website pasted onto the canvas as editable layers",
+    "description": "Alt text for the illustration on the third onboarding step"
+  },
+  "optionsOnboardingReadyTitle": {
+    "message": "Ready to get started?",
+    "description": "Heading for the final onboarding section introducing capture permissions"
+  },
+  "optionsOnboardingReadyDescription": {
+    "message": "Accept the Chrome permissions to start capturing.",
+    "description": "Explains the next step."
+  },
+  "optionsOnboardingCta": {
+    "message": "Get started",
+    "description": "Button at the end of onboarding that opens the shared capture permission flow"
+  },
+  "optionsCapturePermissionsPolicy": {
+    "message": "Acceptable Use Policy",
+    "description": "Link label in the capture permission disclaimer"
+  }
+}
