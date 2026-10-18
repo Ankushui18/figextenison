@@ -71,14 +71,14 @@ function workerHarness() {
   };
 }
 
-test('Only the seven local capture RPCs remain', () => {
+test('Only the six local capture RPCs remain', () => {
   const harness = workerHarness();
   const commands = Array.from(vm.runInContext('Object.keys(handlers).sort()', harness.context));
-  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_VIEWPORT', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED']);
+  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED']);
 });
 test('Removed account, upload, calendar and telemetry commands cannot execute', async () => {
   const harness = workerHarness();
-  for (const cmd of ['LOGIN', 'LOGOUT', 'GET_USER', 'GET_FILES', 'GET_FILE', 'CREATE_FILE', 'SEARCH_FILES', 'IS_LOGGED_IN', 'SENTRY_EXCEPTION', 'SENTRY_BREADCRUMB', 'TRACK', 'EXPERIMENT', 'CLOSE_TAB', 'H2D_CAPTURE_CODE']) {
+  for (const cmd of ['LOGIN', 'LOGOUT', 'GET_USER', 'GET_FILES', 'GET_FILE', 'CREATE_FILE', 'SEARCH_FILES', 'IS_LOGGED_IN', 'SENTRY_EXCEPTION', 'SENTRY_BREADCRUMB', 'TRACK', 'EXPERIMENT', 'CLOSE_TAB', 'H2D_CAPTURE_CODE', 'H2D_CAPTURE_VIEWPORT']) {
     assert.equal((await harness.send(cmd, {})).success, false, cmd);
   }
   assert.equal(harness.calls.length, 0);

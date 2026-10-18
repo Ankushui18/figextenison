@@ -17,7 +17,7 @@ function isInjectable(url) {
 async function injectToolbar(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    files: ["js/privacy.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/h2d_toolbar.js"],
+    files: ["js/privacy.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/h2d_toolbar.js"],
     injectImmediately: true
   });
 }
@@ -166,55 +166,7 @@ async function recoverAssets(payload) {
   return results;
 }
 
-// Viewports: capture the same page in a short-lived popup window at another width.
-// The window opens the tab's own URL (the user's normal page load); nothing is sent to extension servers.
-const vpSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function captureViewport(sender, payload) {
-  const tab = sender.tab;
-  if (!tab || sender.frameId !== 0 || !isInjectable(tab.url)) throw new Error("Invalid viewport request");
-  const width = Math.round(Number(payload?.width)), height = Math.round(Number(payload?.height));
-  if (!(width >= 200 && width <= 3840 && height >= 300 && height <= 4000)) throw new Error("Invalid viewport size");
-  let win;
-  try {
-    win = await chrome.windows.create({ url: tab.url, type: "popup", width, height: height + 40, focused: true });
-    const tabId = win.tabs[0].id, started = Date.now();
-    while ((await chrome.tabs.get(tabId)).status !== "complete") {
-      if (Date.now() - started > 30000) throw new Error("Page load timed out");
-      await vpSleep(250);
-    }
-    await vpSleep(1500);
-    const measure = async () => (await chrome.scripting.executeScript({ target: { tabId }, func: () => window.innerWidth }))[0].result;
-    let actual = await measure();
-    if (Math.abs(actual - width) > 2) {
-      // Window width includes browser chrome; measure that frame instead of guessing it.
-      const frame = Math.max(0, ((await chrome.windows.get(win.id)).width || actual) - actual);
-      await chrome.windows.update(win.id, { width: Math.max(100, width + frame) });
-      await vpSleep(900);
-      actual = await measure();
-    }
-    await injectToolbar(tabId);
-    const ready = Date.now();
-    while (!(await chrome.scripting.executeScript({ target: { tabId }, func: () => !!document.getElementById("__figma_h2d_chrome_extension_toolbar__") }))[0].result) {
-      if (Date.now() - ready > 15000) throw new Error("Toolbar did not start");
-      await vpSleep(250);
-    }
-    await vpSleep(400);
-    await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: () => { window.__pcNoViewports = true; } });
-    await chrome.tabs.sendMessage(tabId, { type: "FIGMA_H2D_TOOLBAR_COMMAND", command: "capture_page" }, { frameId: 0 });
-    const key = Core.capturesKey(tabId), waiting = Date.now();
-    while (true) {
-      const stored = (await chrome.storage.local.get(key))[key];
-      if (stored?.length) return { capture: stored[0], actualWidth: actual };
-      if (Date.now() - waiting > 60000) throw new Error("Capture timed out");
-      await vpSleep(500);
-    }
-  } finally {
-    if (win?.id != null) await chrome.windows.remove(win.id).catch(() => {});
-  }
-}
-
 const handlers = Object.freeze({
-  H2D_CAPTURE_VIEWPORT: captureViewport,
   H2D_GET_TAB_ID: sender => {
     if (!Number.isInteger(sender.tab?.id)) throw new Error("Capture must originate from a tab");
     return sender.tab.id;

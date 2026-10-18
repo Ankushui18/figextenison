@@ -1,4 +1,4 @@
-# Page Capture — 1.7.0
+# Page Capture — 1.7.2
 
 Local page capture with an optional **Design System Generator** and **Copy design system** action. The established dark toolbar, blue accent, capture controls and permission help are retained. No account, onboarding, runtime framework or build step is required.
 
@@ -10,13 +10,44 @@ Local page capture with an optional **Design System Generator** and **Copy desig
 4. To update an existing unpacked installation without changing its ID, replace its files in the existing folder and click **Reload** on the extension card.
 5. Refresh website tabs that already had the previous toolbar injected.
 
-## New in 1.7.0: Viewports and a polished generator
+## Fixed in 1.7.2: responsive captures without new tabs
 
-**Viewports** (toolbar button) lets **Capture design** record the page at several widths in one go: *Browser* (the current window) plus editable presets (1600, 1440, 1024, 768, 393 px). Tick the sizes you want, then click **Capture design**. Each extra size opens the same page in a small temporary window, captures it with the normal local capture, and closes the window; every size becomes its own frame in the pasted result. With only *Browser* ticked, behavior is unchanged.
+The temporary-window approach introduced in 1.7.0 and retained by the 1.7.1 picker fix is **removed**. Viewport selection no longer opens a tab/window, reloads the URL or resizes the live page.
 
-- Selections are remembered locally (`chrome.storage.local`).
-- The temporary window loads the page's own URL like a normal visit; the extension itself sends nothing anywhere. Chrome may enforce a minimum window width — if so the status line reports the width actually used.
-- The Design System dialog now has themed dropdowns and checkboxes, review panes (Contrast / Similar) that scroll instead of clipping, a clearer footer and a dialog centred under the toolbar.
+- **Browser only:** keeps the established 1.6 current-page capture path.
+- **Extra widths:** copy the current DOM into a temporary, script-disabled frame inside the extension's ignored toolbar root, render responsive CSS at each selected width, and use the existing editable snapshot serializer/clipboard. These are different responsive layouts, not stretched/duplicated screenshots.
+- Current text, unsaved form/checkbox/selection state, canvas pixels where supported, readable runtime CSSOM rules, adopted styles and open shadow roots are copied. The page's scripts/custom-element constructors are not rerun, and embedded page URLs are not reloaded.
+- To paste **exactly two screens**, select two sizes and uncheck **Browser** unless the current browser width should be one of those two. Keep the source tab visible/focused while capturing, then paste the combined design clipboard as usual.
+- Cancel, timeout and errors remove the temporary frame. If an extra width fails, earlier completed captures are retained in the tray, the failed width is identified, and **Copy all** remains available. A partial failure does not replace the clipboard with an incomplete batch automatically.
+- No extra Chrome permission, extension CSP exception, runtime dependency, account or upload is added. The former `H2D_CAPTURE_VIEWPORT` worker RPC and temporary-window code are removed. The latest generator design and the 1.7.1 picker repair remain.
+
+**Responsive scope:** media/container queries, viewport units, flex/grid and other CSS layout respond to the isolated width. JavaScript-only breakpoint rerenders are **not** replayed; missing lazy-loaded/app-generated mobile content cannot be invented from the current DOM. Closed shadow roots, embedded documents and live video have the usual snapshot limitations. This is width-based layout capture, not a mobile user-agent/device emulator or a guarantee of pixel-perfect fidelity on every app. Use Browser only for the original capture if a site's responsive copy is unsupported.
+
+Each copy is limited to 50,000 DOM nodes, 5 MiB of copied CSS, 200–3840px width, 200–4000px height and a 20-second preparation deadline. Over-limit copies fail explicitly, not by silently dropping content. Styles/images/fonts may still require ordinary asset GETs; **no new document visit or application-script execution** is used for responsive capture.
+
+**Update:** replace the extension's files, click **Reload** in `chrome://extensions`, and **refresh the website tab** before trying again. Existing viewport preferences are retained.
+
+## Fixed in 1.7.1: Viewports opening off-screen
+
+Based on the latest repository commit `db95a8a` (1.7.0). The existing viewport feature and generator design are retained—not replaced with the older 1.6 build.
+
+**Cause:** the picker was positioned against `controller.element`, an invisible/zero-height host in normal page flow, rather than the visible fixed toolbar. On long pages that host sits below the fold, so clicking Viewports created the panel off-screen.
+
+**Fix:** anchor to the current visible Viewports button, falling back only to `controller.toolbarEl`. Resolve the live button after toolbar rerenders, flip above/below as needed, and clamp to the window with 8px margins. Narrow/short pickers scroll instead of clipping. Source CSS cannot hide the reset popup host.
+
+Toggle/keyboard opening, Escape/focus restoration, outside clicks, toolbar close/reinjection and cleanup are also covered. Opening is awaited by the normal action dispatcher, so errors are not left as silent/unhandled promises. Other capture actions close the picker before reading the page. In that 1.7.1 release, the worker, presets/storage key, capture engine/serializer, generator polish and board-copy code were otherwise retained; 1.7.2 changes the multi-width rendering strategy as described above.
+
+**After replacing files, click Reload in `chrome://extensions`, then refresh every website tab before testing.** A tab with the old injected toolbar can otherwise keep its previous click handler.
+
+The 1.7.0 upload also retained unused vendor bundles/fonts that earlier releases had removed. Those unreferenced leftovers are removed again; the active toolbar font is kept.
+
+## Viewports and the retained 1.7 generator design
+
+**Viewports** lets **Capture design** record *Browser* (the current width) plus editable presets (1600, 1440, 1024, 768, 393px). Tick the desired sizes, then capture. In 1.7.2 each extra size is rendered locally in the page's isolated capture frame, with no new tab/window or URL reload. Every selected size becomes a separate editable snapshot in the combined pasted result.
+
+- Selections and widths remain stored locally under `pc_viewports_v1`.
+- Exact narrow widths are no longer subject to Chrome's minimum popup-window width.
+- The generator retains the 1.7 themed dropdowns/checkboxes, scrolling Contrast/Similar review panes, footer and toolbar-centred dialog.
 
 ## New in 1.6.0: copy a visual design-system board
 
@@ -100,7 +131,7 @@ Generator analysis/downloads/board-copying are local: no account, telemetry, sty
 
 Existing captures stay in local extension storage and the clipboard unless explicitly pasted/shared elsewhere. There is no Figma login, API upload, account request or telemetry client.
 
-**This is not a zero-network browser mode.** Standard design capture can read referenced non-Figma website images/SVG assets with GET requests. Worker recovery omits credentials, bodies and referrers and remains subject to the restrictive extension CSP. Capture-script reads may use same-origin website credentials. Known Figma/Sentry service hosts are denied before an extension asset fetch; redirects are rejected.
+**This is not a zero-network browser mode.** Standard design capture can read referenced non-Figma website images/SVG assets with GET requests. Responsive copies can also load normal stylesheet/font/image assets; CSSOM-unreadable external stylesheets keep their native links. No new document visit or app-script execution is used for extra widths. Worker recovery omits credentials, bodies and referrers and remains subject to the restrictive extension CSP. Capture-script reads may use same-origin website credentials. Known Figma/Sentry service hosts are denied before an extension asset fetch; redirects are rejected.
 
 A website's own scripts/requests and the destination application's activity are not intercepted. Figma-hosted assets may be missing from standard captures because retrieval is blocked. Raw HTML copying omits the doctype, does not make all resources available offline, and may include the established toolbar host. Temporary generator UI is removed before standard captures. Native clipboard access depends on browser security/focus requirements.
 
@@ -123,10 +154,12 @@ npx playwright install chromium
 node tests/browser-smoke.cjs
 node tests/design-system-browser.cjs
 node tests/design-system-board-browser.cjs
+node tests/viewports-browser.cjs
+node tests/viewports-responsive-browser.cjs
 ```
 
-All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts, and share `tests/fixtures/design-system.html`. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
+All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board/viewport/responsive suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts. Generator/board tests share `tests/fixtures/design-system.html`; viewport tests use a deliberately long responsive fixture. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
 
-Verified: **144 Node checks + 54 Chromium groups** (14 existing capture, 25 generator, 15 editable-board). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. Fixture flows block/record remote requests. No live Figma paste was tested.
+Verified: **175 Node checks + 75 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Fixture flows block/record remote requests. No live Figma paste was tested.
 
 No changes have been committed or pushed to the online repository.

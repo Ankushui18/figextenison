@@ -3,7 +3,7 @@
   "minimum_chrome_version": "116",
   "name": "Page Capture",
   "description": "Capture pages locally as editable design layers or HTML. No account, telemetry or automatic uploads.",
-  "version": "1.7.0",
+  "version": "1.7.2",
   "action": {
     "default_icon": {
       "16": "icon16.png",

@@ -1,7 +1,67 @@
 # Privacy and verification audit
 
-Version: **1.6.0**  
-Review/test date: **18 October 2026**
+Version: **1.7.2**
+
+Review/test date: **19 October 2026**
+
+## Current release: 1.7.2 in-page responsive capture
+
+**User correction:** keep the 1.6 current-page workflow, produce genuinely responsive extra screens, and never open another tab/window or resize/reload the actual page. The 1.7.0 temporary-window strategy was retained by the earlier dropdown-only fix; this release replaces it rather than claiming its original site-specific failure was reproduced (no failing public URL/error was supplied).
+
+### Implementation and boundaries
+
+- Remove `captureViewport`, all capture-window creation/resize/storage-polling code, and **H2D_CAPTURE_VIEWPORT**. The worker returns to its **six local capture RPCs** and injects the new dependency-free `js/viewports.js`. Existing permission-help tab opening is retained; extra-width capture never uses it to visit the source URL.
+- Keep the original Browser/normal single-page capture and rich clipboard path. Only extra widths call the local adapter. Its iframe has **no src/srcdoc navigation**, lives in the toolbar's ignored closed root, uses `sandbox="allow-same-origin"` without scripts/forms/popups/top-navigation, and adds script/connect/object/frame/form restrictions. Static literal document initialization establishes standards mode; the website HTML is never passed to document.write/innerHTML.
+- Import the current DOM into an inert parent-realm document before adoption. Source script/event handlers, refresh/CSP/base/preload metadata and embedded navigation are removed/neutralized. Scripts and custom-element constructors are not rerun. Current live form properties, text, readable CSSOM/adopted sheets and open shadow roots are carried over. Browser-supported canvas pixels are copied as canvas content, as with normal snapshot capture.
+- Re-evaluate CSS in an actually sized iframe viewport. Readable sheets/imports are serialized with original stylesheet-relative asset URLs and media/supports/layer conditions into that frame's constructed sheets. CSSOM-unreadable cross-origin styles keep their normal stylesheet links/cascade; stylesheet loads must succeed. Current CSSOM changes to readable links are preserved as well. Empty/blocked source sheets are not retried as new styles. Known blocked service URLs/unsafe schemes are rejected when rewriting CSS/src/srcset URLs.
+- No application/document URL is visited for extra widths. **Asset GETs may occur**, including normal stylesheet/font/image reads. The frame inherits site resource CSP and adds restrictions; extension CSP/permissions/host permissions remain unchanged. The page's own requests/service worker are not intercepted. This is not a zero-network mode.
+- The existing private capture engine needs three small cross-document pseudo-element compatibility edits: two root checks accept real iframe Document nodes, and pseudo measurement constructs its stylesheet in the owning frame's realm. Current-document/normal shadow-root branches keep the original constructor. Reversing these three edits makes the complete pre-viewport engine/helper prefix byte-identical to 1.7.1; serializer/encoding/raw-HTML helpers are unchanged. Existing generator/review/board runtime modules are byte-identical to the user's 1.7.0 build.
+- Extra snapshots opt out of source scrollbar probing and CSS-variable provenance extraction, using computed responsive values instead. The copied root is validated, viewport/document bounds are set from the actual frame, and titles include the width. No screenshot of the whole page, fake stretching, native-variable binding, upload or new clipboard format is substituted. Extra captures use the existing tray with an icon rather than a screenshot of the wrong source viewport.
+- One temporary frame at a time. Limits: **50,000 nodes (checked before cloning), 5 MiB aggregate CSS, widths 200–3840px, heights 200–4000px, 20 seconds** per preparation. Capture, serialization, cancellation, timeout and controller disposal are abort-scoped and remove the frame. Errors identify the width; already completed captures are saved for manual Copy rather than discarded, and an incomplete batch is not automatically written over the clipboard. Cancel intentionally discards the unfinished batch. Native clipboard writes retain their existing irrevocable-write limitation.
+- Responsive CSS/media/container/flex/grid/viewport behavior is supported, **not JavaScript-only breakpoint rerenders**, missing lazy-loaded content or mobile UA emulation. Closed shadow DOM, embedded documents, running video, animation state, unusual stylesheet namespace/base handling, fonts/assets/CSP and destination fidelity have limitations. Unsupported/over-limit preparation is an explicit error; Browser remains available. UI/frame isolation is not a security boundary against a hostile source page or privileged tools.
+
+### Current verification and release
+
+**175 Node checks + 75 Chromium groups pass** (14 capture, 25 generator, 15 editable-board, 11 picker/viewport, 10 in-page responsive). Browser suites run sequentially; no clipboard/focus-sharing parallel runs. Release inventory/CRC/bytes, all JS syntax, all JSON, permissions/CSP and extracted-package suites are checked.
+
+Native clipboard decoding verifies both Browser+768+393px and **exactly two 1600/393px** snapshots with Browser unchecked. Responsive grid positions, styles and media/shadow pseudo-text differ at the requested widths; this is not duplicate/stretch-only output. Tests prove **zero new capture tabs/windows/document visits**, unchanged source width/height/scroll/focus/current SPA/form state, no script/custom-constructor reruns, mixed-origin/dynamic/adopted/shadow CSS, standards mode, strict CSP, normal asset-only GETs, no remote attempts/uploads/uncaught page errors, cancel/failure/serialization/timeout cleanup, and retention/manual copy of the original capture after an extra-width error.
+
+The historical 157 checks are retained (updated to expect six RPCs/the new version/renderer), plus 18 responsive unit checks. Test-only hooks, forced failures/timer scaling and clipboard-read grants are absent from runtime code. Native clipboard polling waits for a full rich payload rather than assuming asynchronous manual Copy has already completed.
+
+Runtime: **687,925 bytes** / 19 files, including **314,878 bytes of JavaScript**. Relative to 1.7.1, only the manifest, toolbar and worker change, plus the new local viewport module; the other **15 retained runtime files** remain byte-identical. The previous original 1.6 workspace and all delivered ZIPs remain untouched. No commit/push/upload was performed; live Figma paste remains unverified.
+
+## Historical 1.7.1 viewport opening repair
+
+Baseline: public repository commit **db95a8a67a2b90495e18ff2ddfc3c1928804b314**, version 1.7.0. The previously delivered 1.6.0 workspace is not overwritten. No commit/push/upload to the repository was performed.
+
+### Reproduced cause and scoped changes
+
+The existing Viewports action passed `r().element` to its placement function. That element is the toolbar's invisible/zero-height normal-flow host, not its fixed visible controls. On a long fixture, the host was at **1622px**, the panel started at **1354px**, and the window was only **900px** high. The click worked but put the picker off-screen.
+
+1. Pass/await the controller through the existing action dispatcher. Placement resolves its current visible Viewports button (rerenders replace buttons), with `controller.toolbarEl` as the only fallback. No source-flow host is used for anchoring.
+2. Use pure, bounded placement with above/below flipping and 8px window margins. Constrain popup width/height and allow internal scrolling; reset only the ignored popup host against site CSS. No global page stylesheet, source styling/value, website scroll/viewport or design-system redesign is introduced by opening the picker.
+3. Tie popup listeners and its animation frame to explicit close/lifecycle cleanup. Toggle, Escape/focus restoration, outside click, More, other capture actions and toolbar disposal/reinjection remove it. Closed-shadow-root retargeting is respected: toolbar button hit paths are checked inside the toolbar root, not incorrectly inferred from document-level paths.
+4. Close the picker synchronously before standard raw-HTML/selection/design actions. The actual raw-HTML helper, snapshot/serialization/clipboard helpers and viewport capture worker are unchanged.
+5. Bump only the manifest version to 1.7.1. No Chrome permissions, host permissions, extension CSP, storage schema or RPC is added by this repair. The other **16 retained runtime files** are byte-identical to 1.7.0, including the worker, privacy/options helpers, generator/review/board modules, locale and retained assets.
+6. Remove five unreferenced leftovers present in the 1.7.0 repository upload: `js/vendor.js`, its license, the obsolete worker-bundle license, `MaterialIcons.woff2` and `InterVariable-Italic.woff2`. They were already removed in the prior cleanup. No active reference uses them; the active Inter font remains. Their presence was not evidence of an active upload/telemetry path.
+
+The existing 1.7.0 feature deliberately opens the source URL in temporary windows **only when Capture design is requested with extra widths selected**. Normal page visits can execute the site's scripts and use its normal session; these are not a clone of unsaved in-page form/application state. This fix does not change that worker or claim those visits are zero-network. Opening the picker alone makes no page visit or new window.
+
+Version 1.7.0 already added the seventh local RPC, **H2D_CAPTURE_VIEWPORT**, alongside the six historical capture RPCs listed below. It uses the sender tab's URL rather than a caller-supplied destination. The worker remains byte-identical in this repair. Original cancellation/timeout/window-minimum limits of that capture workflow are not redesigned here.
+
+### Historical 1.7.1 verification
+
+**157 Node checks and 65 Chromium groups pass**: 144 retained checks + 13 viewport checks, and 14 capture + 25 generator + 15 editable-board + 11 viewport browser groups. Browser suites run sequentially against the unpacked release. Permissions/CSP, syntax/JSON, ZIP CRC/full inventory and extracted-package checks are verified.
+
+The new tests exercise long/scrolled source pages with a below-fold host, actual trigger-relative positioning, toggle/keyboard/Escape/outside clicks, source DOM/value/scroll preservation, CSS hiding attempts, native width/checkbox changes and local persistence/clamping, bottom docking, 390px/200px narrow and 240px/180px short windows, scrollable popup bounds, pre-capture cleanup, More/disposal/reinjection, and actual **1280 / 768 / 393px** responsive design captures. Native rich clipboard decoding confirms three editable snapshots; temporary windows close and the source width remains unchanged. Only expected localhost GET fixture visits occur, with no remote attempts or uncaught page errors.
+
+The old coordinate-scanning viewport test is replaced by dynamic-port/real-control tests with bounded waits and guaranteed cleanup. Test clicks wait for responsive/docking animation geometry to settle. A test CSS selector containing `__pc_viewports__` is not confused with an actual leaked host in raw HTML. Test instrumentation and clipboard-read grants are not shipped in runtime code.
+
+Current runtime: **672,123 bytes** across 18 retained runtime files, including **299,076 bytes of JavaScript** (excluding tests/docs). All existing generator/clipboard tests pass unchanged in behavior. Real Figma paste remains unverified; native clipboard payload tests do not claim a live destination integration.
+
+## Historical 1.6.0 audit (retained behavior)
+
+The following sections document the earlier generator/clipboard cleanup baseline, not a claim that 1.7.0 never added viewport code/RPCs. Current changes and verification supersede historical version/count/engine-isolation figures where noted above.
 
 ## Summary
 
@@ -62,7 +122,7 @@ Scanning yields every 100 inspected nodes, supports abort signals and stops afte
 
 Escape closes only the generator first. Mod+Enter is blocked while its modal is open. A preserved/wrapped controller event callback closes temporary UI synchronously before standard capture actions read the document. Cancelling a scan retains the previous completed result and restores its scope. Disposal also aborts board preparation, disconnects the observer/listeners, clears timers, revokes Blob URLs, removes UI and restores the prior event callback. The frame/closed-root board is generated only for copying; the scanner still does not inspect website iframe documents.
 
-### Capture-engine isolation
+### Historical 1.6.0 capture-engine isolation
 
 Relative to 1.3.29, `js/h2d_toolbar.js` has only two reversible changes:
 
@@ -107,7 +167,7 @@ The active capture-code helper formerly called Chrome's local MHTML API. After t
 
 ### Active local paths retained
 
-The worker accepts only these six capture RPCs:
+Before the 1.7.0 Viewports addition, the worker accepted these six capture RPCs (the current seventh is documented above):
 
 - H2D_GET_TAB_ID
 - H2D_OPEN_TOOLBAR
@@ -136,7 +196,7 @@ The 1.3.29 cleanup reduced runtime files (excluding tests/Markdown) from **1,808
 
 The 1.4.0 runtime was **610,747 bytes**, including **237,809 bytes of JavaScript**. The 1.5.0 runtime was **636,630 bytes**, including **263,692 bytes of JavaScript**. Version 1.6.0 is **656,033 bytes** across 18 runtime files, including **283,095 bytes of JavaScript**. It adds about 19 KB of local code, with no font/image/framework bundle.
 
-## Verification
+## Historical 1.6.0 verification
 
 ### 144 Node checks
 
