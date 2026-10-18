@@ -24,14 +24,14 @@
     return text.replace(/url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|((?:\\.|[^)\\])*))\s*\)/gi, (_, a, b, c) => `url(${quote(a ?? b ?? c)})`)
       .replace(/(@import\s+)(["'])((?:\\.|[^"'\\])*)\2/gi, (_, prefix, _quote, value) => prefix + quote(value));
   }
-  function srcsetUrls(text, base) {
+  function parseSrcset(text) {
     const candidates = []; let index = 0;
     while (index < text.length) {
       while (/[\s,]/.test(text[index] || "") && index < text.length) index++;
       if (index >= text.length) break;
       let url = "";
       while (index < text.length && !/\s/.test(text[index])) url += text[index++];
-      if (url.endsWith(",")) { candidates.push(assetUrl(url.replace(/,+$/, ""), base)); continue; }
+      if (url.endsWith(",")) { candidates.push({ url: url.replace(/,+$/, ""), descriptor: "" }); continue; }
       let descriptor = "", parentheses = 0;
       while (index < text.length) {
         const char = text[index++];
@@ -39,9 +39,99 @@
         if (char === "(") parentheses++; if (char === ")") parentheses--;
         descriptor += char;
       }
-      candidates.push(assetUrl(url, base) + (descriptor.trim() ? " " + descriptor.trim() : ""));
+      candidates.push({ url, descriptor: descriptor.trim() });
     }
-    return candidates.join(", ");
+    return candidates;
+  }
+  function srcsetUrls(text, base) {
+    return parseSrcset(text).map(row => assetUrl(row.url, base) + (row.descriptor ? " " + row.descriptor : "")).join(", ");
+  }
+  // Resolve explicit lazy-image metadata without scrolling or editing live DOM.
+  // A real loaded source wins; a placeholder/URL template is replaced only when
+  // the page itself supplies a usable candidate. No guessed image endpoints.
+  function imageInfo(image) {
+    const attr = name => (image.getAttribute?.(name) || "").trim();
+    const current = image.currentSrc || attr("src");
+    const template = value => /\{(?:width|height)\}|%7b(?:width|height)%7d/i.test(value);
+    const placeholder = !current || template(current) || /^data:image\//i.test(current) && (image.naturalWidth || 0) <= 2 && (image.naturalHeight || 0) <= 2;
+    const base = image.ownerDocument?.baseURI || globalThis.location?.href || "";
+    const rect = image.getBoundingClientRect?.() || {};
+    const view = image.ownerDocument?.defaultView;
+    const ratio = Math.min(3, Math.max(1, Number(view?.devicePixelRatio) || 1));
+    const width = Math.max(1, Math.min(4096, Math.ceil((rect.width || Number(attr("width")) || view?.innerWidth || 1024) * ratio)));
+    const height = rect.height > 2 ? Math.min(4096, Math.ceil(rect.height * ratio)) : "";
+    const resolve = value => {
+      const replaced = value.replace(/\{width\}|%7bwidth%7d/gi, String(width)).replace(/\{height\}|%7bheight%7d/gi, String(height));
+      const result = assetUrl(replaced, base);
+      return result && result !== "data:," && !/^javascript:/i.test(result) ? result : "";
+    };
+    if (!placeholder) return { url: resolve(current), changed: false };
+    let candidate = "";
+    // Picture sources retain their active media query, rather than blindly using
+    // a desktop candidate for a phone-sized copy.
+    const picture = image.parentElement?.localName === "picture" ? image.parentElement : null;
+    const source = picture && [...picture.querySelectorAll("source")].find(node => !node.media || view?.matchMedia(node.media).matches);
+    const set = source?.getAttribute("data-srcset") || attr("data-srcset") || attr("data-lazy-srcset");
+    if (set) {
+      const candidates = parseSrcset(set).map(row => ({ ...row, size: parseFloat(row.descriptor) || 1, density: /x\s*$/.test(row.descriptor) }));
+      const ranked = candidates.sort((a, b) => a.size - b.size);
+      candidate = (ranked.find(row => row.size >= (row.density ? ratio : width)) || ranked[ranked.length - 1])?.url || "";
+    }
+    candidate ||= attr("data-src") || attr("data-lazy-src") || attr("data-original") || attr("data-original-src") || current;
+    const url = candidate ? resolve(candidate) : "";
+    return { url: url || resolve(current), changed: !!url && (url !== current || template(current)) };
+  }
+  function imageSource(image) { return imageInfo(image).url; }
+  function prepareLazyImages(root) {
+    let count = 0;
+    for (const image of root.querySelectorAll("img")) {
+      const info = imageInfo(image);
+      if (!info.changed) continue;
+      image.removeAttribute("srcset");
+      if (image.parentElement?.localName === "picture") for (const source of image.parentElement.querySelectorAll("source")) source.removeAttribute("srcset");
+      image.src = info.url; image.loading = "eager"; image.decoding = "sync"; count++;
+    }
+    return count;
+  }
+  async function decodeImages(images, signal) {
+    signal.throwIfAborted();
+    const saved = [];
+    try {
+      const eligible = images.filter(image => globalThis.PageCapturePrivacy?.isAllowedAssetUrl(image.currentSrc || image.src, image.ownerDocument?.baseURI || globalThis.location?.href));
+      for (const image of eligible) {
+        saved.push([image, image.getAttribute("loading"), image.getAttribute("decoding")]);
+        image.loading = "eager"; image.decoding = "sync";
+      }
+      await wait(Promise.allSettled(eligible.map(image => image.decode())), signal);
+    } finally {
+      for (const [image, loading, decoding] of saved) {
+        for (const [name, value] of [["loading", loading], ["decoding", decoding]]) if (value == null) image.removeAttribute(name); else image.setAttribute(name, value);
+      }
+    }
+  }
+  function expandFullPage(root, bounds) {
+    const height = Number(bounds?.height);
+    if (!root?.rect || !Number.isFinite(height) || height <= 0 || height <= root.rect.height + .5) return root;
+    // Keep viewportRect and all child coordinates untouched: CSS still evaluated
+    // at the original viewport, but the editable root must contain the whole page.
+    root.rect = { ...root.rect, height };
+    root.styles = { ...root.styles, height: `${height}px` };
+    if (root.styles.maxHeight) root.styles.maxHeight = "none";
+    if (root.computedStyles) { delete root.computedStyles.height; delete root.computedStyles.maxHeight; }
+    return root;
+  }
+  async function fetchAssetBatches(urls, request, signal) {
+    const result = [];
+    const unique = [...new Set(urls)];
+    for (let index = 0; index < unique.length; index += 64) {
+      signal.throwIfAborted();
+      const batch = unique.slice(index, index + 64);
+      try {
+        const rows = await wait(request(batch), signal);
+        if (Array.isArray(rows)) result.push(...rows.filter(row => row && batch.includes(row.url)));
+      } catch (error) { signal.throwIfAborted(); /* one failed batch must not suppress later eligible assets */ }
+    }
+    return result;
   }
   function readSheet(sheet, base, seen = new Set()) {
     if (seen.has(sheet)) return { css: "", complete: true };
@@ -231,13 +321,14 @@
           while (target.cssRules.length) target.deleteRule(0);
           for (const rule of replacement.cssRules) target.insertRule(rule.cssText, target.cssRules.length);
         }
+        prepareLazyImages(root);
         const fonts = isolated.fonts?.ready;
         if (fonts) await wait(Promise.race([fonts, new Promise(resolve => setTimeout(resolve, 1500))]), active);
         await wait(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))), active);
         active.throwIfAborted();
         const actualWidth = frame.contentWindow.innerWidth;
         if (Math.abs(actualWidth - width) > 1 || !root.isConnected || root.getBoundingClientRect().height <= 0) throw new Error("The responsive copy has invalid viewport bounds.");
-        const result = await wait(helpers.capture(root, { timeoutSignal: active, extractCssVariables: false, captureSourceProps: false, skipScrollbarHiding: true, assertLayoutValid: false }), active);
+        const result = await wait(helpers.capture(root, { timeoutSignal: active, extractCssVariables: false, captureSourceProps: false, skipScrollbarHiding: true, assertLayoutValid: false, captureFullPage: true }), active);
         active.throwIfAborted();
         const snapshot = result?.document;
         if (!snapshot?.root || snapshot.root.nodeType !== 1) throw new Error("The responsive copy could not be captured.");
@@ -254,5 +345,5 @@
       }
     };
   }
-  globalThis.PageCaptureViewports = Object.freeze({ createCapturer, dimensions, cssUrls, srcsetUrls, limits: LIMITS });
+  globalThis.PageCaptureViewports = Object.freeze({ createCapturer, dimensions, cssUrls, srcsetUrls, imageSource, decodeImages, expandFullPage, fetchAssetBatches, limits: LIMITS });
 })();

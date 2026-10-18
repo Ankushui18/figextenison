@@ -1,10 +1,41 @@
 # Privacy and verification audit
 
-Version: **1.7.2**
+Version: **1.7.3**
 
 Review/test date: **19 October 2026**
 
-## Current release: 1.7.2 in-page responsive capture
+## Current release: 1.7.3 full-page completeness repair
+
+Baseline: public **1.7.2**, commit **869174d6456f3b0494578c3fdd52d01b572ad476**. Work is isolated in `figextenison-fullpage-fix`; the previous 1.6/1.7.2 workspaces and release ZIPs remain unchanged. No repository commit/push is performed.
+
+### Reproduced defects
+
+The user reported that selecting a section preserves images, while full-page captures miss images/lower sections in both Browser and extra widths on **dribbble.com**. A controlled 30-card lazy gallery reproduced both causes: the page had a **3928px scroll height but an 813px root rectangle**, and only **6 of 30 images** had real current sources before scrolling. Selected card capture, once in view, contained its real image. The 1.7.2 Browser snapshot kept the 813px frame and only six real image URLs; its phone copy kept a 900px frame for a 9696px page.
+
+Normal browser readiness subsequently loaded the real anonymous Dribbble page (its initial HTTP response was a 202 challenge). **No CAPTCHA solving, browser-fingerprint overrides, alternate proxies, authentication or access-control bypass was used.** The real 1.7.2 baseline reproduced an **813px root for a 4795px document**, **40 empty image sources** in Browser, and **37 empty image sources / an 813px root for a 10772px document** in phone capture.
+
+### Scoped implementation
+
+1. The readable existing `js/viewports.js` gains common full-page helpers. The engine calls `expandFullPage` only for Document capture or the explicit `captureFullPage` option used by responsive HTML-root copies. It enlarges only the snapshot root/height constraints, not the live DOM, viewport, width, child coordinates or selected-section/board geometry.
+2. `imageSource` reads explicit `data-src`, lazy/original variants and `data-srcset`, respects active picture media and valid loaded sources, resolves relative assets and `{width}/{height}` (including encoded templates), and bounds requested image dimensions/DPR. It reuses existing asset URL/privacy validation. No image URLs are guessed. `currentSrc` in the snapshot and the collected asset key use the same resolved URL. Empty source attributes are not treated as the document URL.
+3. Only the isolated responsive copy activates those lazy image URLs before image/layout capture. The live Source DOM is not scrolled/resized or assigned new image src/srcset values. The decoder temporarily changes loading/decoding as before but now restores the original attributes in finally on success, failure, cancellation or timeout. Pending decode waits race the active signal; a pre-cancelled decode does no work.
+4. The serializer's optional helper chunks recovery into **64-URL RPC payloads**, preserving the unchanged worker's validation and bounded image-only recovery. It deduplicates, accepts only requested results, continues after an independent batch failure and stops on cancellation. No new RPC, network permission, host permission, CSP exception, account/upload path or redirect relaxation is added.
+5. Existing source raw-HTML copying, native clipboard/metadata encoding, generator/scanner/review/board modules and selected-section flow remain. Native clipboard writes and video/other asset-stage work retain their existing cancellation/fidelity limits. Hidden visual-snapshot form-value handling, silent automatic-copy failure feedback and general design-batch byte budgets from the separate audit are **not claimed fixed by this release**.
+6. Remove the same five unused vendor/font/license leftovers that were still present in the public 1.7.2 upload. The release ZIP already excluded them; the public copy otherwise matched all 35 release files. Their presence is not evidence of an active telemetry/upload path. All retained runtime files except the toolbar, viewport helper and manifest are byte-identical to 1.7.2.
+
+### Verification and remaining limits
+
+**195 Node checks + 83 Chromium groups pass** (14 capture, 25 generator, 15 board, 11 picker/viewport, 10 responsive, 8 full-page). The new gallery suite uses real native controls/storage/clipboard: Browser and 393px copies each include **30 real embedded images**, all captions/footer, full 3928px/9696px roots and the correct unchanged viewport rectangles. It proves no source HTML/value/scroll/viewport changes, no new capture tab/window/document visit, no invalid template requests, preserved selected-section sizing, scrolled-source coordinates, 130-asset recovery in **64/64/2** batches, and cancellation of a never-settling image decode. New pure tests cover URL/source selection, unsafe destinations, root constraints, original attribute restoration and batch failure/abort behavior.
+
+A separate real-site check after the fix captured the actual Dribbble page with **4795px Browser / 10772px phone** roots, **zero empty image sources and zero unresolved templates**. An initial successful run contained 92 image elements; a repeat had 93 as site ads varied. The repeat embedded **94 Browser / 93 phone** assets. Three remaining failures were third-party ad/tracking image endpoints; an earlier rotating video ad also exposed the existing inactive-video limitation. Intentionally CSS-hidden images have zero bounds on some layouts and are not forced visible. This is not a claim that every third-party resource can or should be retrieved.
+
+Public CDN PNG capture was separately checked with real `cdn.dribbble.com` URLs and explicit URL-template resolution; native Blob data was embedded successfully. Only aggregate real-site metrics/asset error hosts were recorded in scratch diagnostics, not raw page HTML, form values, cookies, captures or clipboard payloads. The deterministic release suites use local fixtures and no remote resources. **A paste into live Figma remains unverified.**
+
+Full-page height refers to the current document, not an unlimited feed or arbitrary nested scroll containers. Missing app-generated DOM, Load more/infinite pagination, closed roots, blocked resources, font substitution, video and destination behavior remain limitations. No automatic source scrolling/clicking, source URL reload or JavaScript breakpoint rerun is introduced.
+
+Runtime: **694,017 bytes** / 19 files, including **320,970 bytes of JavaScript**. **16 retained runtime files** are byte-identical to 1.7.2; worker/RPC/permission/CSP rules are unchanged. Release ZIP CRC, complete byte inventory, JSON/JS syntax and extracted-package suites are checked before delivery.
+
+## Historical 1.7.2 in-page responsive capture
 
 **User correction:** keep the 1.6 current-page workflow, produce genuinely responsive extra screens, and never open another tab/window or resize/reload the actual page. The 1.7.0 temporary-window strategy was retained by the earlier dropdown-only fix; this release replaces it rather than claiming its original site-specific failure was reproduced (no failing public URL/error was supplied).
 
@@ -20,7 +51,7 @@ Review/test date: **19 October 2026**
 - One temporary frame at a time. Limits: **50,000 nodes (checked before cloning), 5 MiB aggregate CSS, widths 200–3840px, heights 200–4000px, 20 seconds** per preparation. Capture, serialization, cancellation, timeout and controller disposal are abort-scoped and remove the frame. Errors identify the width; already completed captures are saved for manual Copy rather than discarded, and an incomplete batch is not automatically written over the clipboard. Cancel intentionally discards the unfinished batch. Native clipboard writes retain their existing irrevocable-write limitation.
 - Responsive CSS/media/container/flex/grid/viewport behavior is supported, **not JavaScript-only breakpoint rerenders**, missing lazy-loaded content or mobile UA emulation. Closed shadow DOM, embedded documents, running video, animation state, unusual stylesheet namespace/base handling, fonts/assets/CSP and destination fidelity have limitations. Unsupported/over-limit preparation is an explicit error; Browser remains available. UI/frame isolation is not a security boundary against a hostile source page or privileged tools.
 
-### Current verification and release
+### Historical 1.7.2 verification and release
 
 **175 Node checks + 75 Chromium groups pass** (14 capture, 25 generator, 15 editable-board, 11 picker/viewport, 10 in-page responsive). Browser suites run sequentially; no clipboard/focus-sharing parallel runs. Release inventory/CRC/bytes, all JS syntax, all JSON, permissions/CSP and extracted-package suites are checked.
 

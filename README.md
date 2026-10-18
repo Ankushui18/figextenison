@@ -1,4 +1,4 @@
-# Page Capture — 1.7.2
+# Page Capture — 1.7.3
 
 Local page capture with an optional **Design System Generator** and **Copy design system** action. The established dark toolbar, blue accent, capture controls and permission help are retained. No account, onboarding, runtime framework or build step is required.
 
@@ -10,11 +10,26 @@ Local page capture with an optional **Design System Generator** and **Copy desig
 4. To update an existing unpacked installation without changing its ID, replace its files in the existing folder and click **Reload** on the extension card.
 5. Refresh website tabs that already had the previous toolbar injected.
 
+## Fixed in 1.7.3: full-page images and missing lower sections
+
+Full-page and selected-section capture could differ on galleries such as Dribbble:
+
+- A page with `html { height:100% }` can have a viewport-height HTML rectangle but thousands of pixels of document content. The snapshot root previously kept that short height, which could clip lower sections when pasted. Full-page snapshots now use the full document height, while keeping the original viewport dimensions and child coordinates. Selected-section and design-system-board roots are not expanded.
+- Off-screen images can expose only `data-src` / `data-srcset` metadata, a one-pixel placeholder, or unresolved `{width}` / `{height}` URLs. The capture now resolves explicit lazy metadata, active picture sources and measured URL templates. Responsive copies activate those image sources **inside the copy only**. Real loaded sources win; no guessed image endpoints or site scripts are run, and empty `src` never becomes a request for the document URL.
+- Eligible failed assets are recovered in **batches of at most 64 URLs**, rather than sending an oversized request that rejects all recovery for a large page. Existing URL validation, CSP, redirect and image limits are unchanged. Failed batches do not prevent later eligible batches; cancellation stops the sequence.
+- Waiting for image decoding now respects cancellation/the supplied timeout and restores the original `loading` / `decoding` attributes. This is not a claim that native clipboard writes or every video/asset operation can be revoked after submission.
+
+**Live verification:** after normal browser readiness, the actual anonymous Dribbble homepage reproduced the problem in 1.7.2: a **4,795px document** had an **813px snapshot root**, and **40 image sources were empty**. The revised build captured the full **4,795px Browser / 10,772px phone** height with **zero empty/unresolved image sources**, without source scrolling or resizing. A repeat showed 94/93 embedded assets for Browser/phone; three third-party advertising/tracking assets still failed. Site content/ads can vary. Public Dribbble CDN PNGs were also fetched and embedded in a controlled gallery test. This verifies capture data, **not a live paste into Figma**.
+
+This captures content **already represented in the current DOM**. It does not scroll an infinite feed, click Load more, recreate missing app-generated sections, unblock third-party tracking/ads, or force intentionally hidden menus/mobile-only content to appear. Existing embedded-video, font and destination-fidelity limitations remain. No new tab/window, page URL navigation, site-script replay, source viewport change, extension permission or redesign is introduced.
+
+Install the **full ZIP**, reload the extension, and **refresh the Dribbble/source tab** so the new helper and click handlers replace the old injected code.
+
 ## Fixed in 1.7.2: responsive captures without new tabs
 
 The temporary-window approach introduced in 1.7.0 and retained by the 1.7.1 picker fix is **removed**. Viewport selection no longer opens a tab/window, reloads the URL or resizes the live page.
 
-- **Browser only:** keeps the established 1.6 current-page capture path.
+- **Browser only:** keeps the established current-page capture flow; 1.7.3 adds full-height framing and explicit lazy-image resolution.
 - **Extra widths:** copy the current DOM into a temporary, script-disabled frame inside the extension's ignored toolbar root, render responsive CSS at each selected width, and use the existing editable snapshot serializer/clipboard. These are different responsive layouts, not stretched/duplicated screenshots.
 - Current text, unsaved form/checkbox/selection state, canvas pixels where supported, readable runtime CSSOM rules, adopted styles and open shadow roots are copied. The page's scripts/custom-element constructors are not rerun, and embedded page URLs are not reloaded.
 - To paste **exactly two screens**, select two sizes and uncheck **Browser** unless the current browser width should be one of those two. Keep the source tab visible/focused while capturing, then paste the combined design clipboard as usual.
@@ -156,10 +171,11 @@ node tests/design-system-browser.cjs
 node tests/design-system-board-browser.cjs
 node tests/viewports-browser.cjs
 node tests/viewports-responsive-browser.cjs
+node tests/fullpage-browser.cjs
 ```
 
-All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board/viewport/responsive suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts. Generator/board tests share `tests/fixtures/design-system.html`; viewport tests use a deliberately long responsive fixture. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
+All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board/viewport/responsive/full-page suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts. Generator/board tests share `tests/fixtures/design-system.html`; viewport tests use a deliberately long responsive fixture. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
 
-Verified: **175 Node checks + 75 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Fixture flows block/record remote requests. No live Figma paste was tested.
+Verified: **195 Node checks + 83 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive, 8 full-page). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Full-page tests add a 30-image lazy gallery, a 100%-height root, preserved footer/scrolled coordinates, 130-asset recovery, source preservation and decode cancellation. Fixture flows block/record remote requests; a separate real-site probe verifies Dribbble capture data. No live Figma paste was tested.
 
-No changes have been committed or pushed to the online repository.
+The 1.7.3 changes were prepared locally and have not been committed or pushed to the online repository.
