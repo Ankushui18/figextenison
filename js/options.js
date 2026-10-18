@@ -1,2 +1,155 @@
-(()=>{"use strict";var e,t,i,n={1804(e,t){Object.defineProperty(t,"__esModule",{value:!0}),t.toolbarRequestKey=function(e){return`figma_h2d_toolbar_request_${e}`},t.isH2DToolbarCommand=function(e){return"capture_code"===e||"capture_page"===e||"select_element"===e}},1958(e,t,i){Object.defineProperty(t,"__esModule",{value:!0}),t.ToggleIcon=function(){return(0,n.jsxs)("svg",{width:"28",height:"16",viewBox:"0 0 28 16",fill:"none","aria-hidden":"true",xmlns:"http://www.w3.org/2000/svg",children:[(0,n.jsx)("rect",{width:"28",height:"16",rx:"8",fill:"#0D99FF"}),(0,n.jsx)("circle",{cx:"20",cy:"8",r:"6",fill:"white"})]})};const n=i(4848)},3768(e,t,i){Object.defineProperty(t,"__esModule",{value:!0}),t.selectOptionsView=l,t.useOptionsView=function(){const e=(0,n.useSelector)(o.isAuthenticationInitialized),t=(0,n.useSelector)(o.selectLoggedIn),i=(0,n.useSelector)(o.getUserInfo),a=(0,r.parseOptionsReason)(window.location.search),{hasCapturePermissions:d,permissionError:c,refreshPermissions:u}=(0,s.useCapturePermissions)();return{view:l({isAuthReady:e,isLoggedIn:t,hasCapturePermissions:null!=d?d:!c&&null,optionsReason:a,hasToolbarRequest:!!(0,r.parseOptionsToolbarRequestId)(window.location.search)}),userInfo:i,hasCapturePermissions:d,permissionError:c,refreshPermissions:u}};const n=i(7040),o=i(9114),r=i(6719),s=i(9401);function l({isAuthReady:_a,isLoggedIn:_b,hasCapturePermissions:i,optionsReason:n,hasToolbarRequest:o}){const e=!0,t=!0;return"file_access"}},4632(e,t,i){Object.defineProperty(t,"__esModule",{value:!0}),t.WarningIcon=function(){return(0,n.jsxs)("svg",{width:"16",height:"16",viewBox:"0 0 16 16",fill:"none","aria-hidden":"true",xmlns:"http://www.w3.org/2000/svg",children:[(0,n.jsx)("path",{d:"M7.13 2.5a1 1 0 0 1 1.74 0l5.2 9.25a1 1 0 0 1-.87 1.5H2.8a1 1 0 0 1-.87-1.5L7.13 2.5Z",stroke:"currentColor",strokeWidth:"1.2",strokeLinejoin:"round"}),(0,n.jsx)("path",{d:"M8 6.25v3",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"}),(0,n.jsx)("circle",{cx:"8",cy:"11",r:"0.65",fill:"currentColor"})]})};const n=i(4848)},5902(e,t,i){Object.defineProperty(t,"__esModule",{value:!0}),t.FolderIcon=function(){return(0,n.jsx)("svg",{width:"26",height:"22",viewBox:"0 0 26 22",fill:"none",xmlns:"http://www.w3.org/2000/svg",children:(0,n.jsx)("path",{d:"M10.1719 0C10.9674 8.00517e-05 11.7304 0.316368 12.293 0.878906L15.4141 4H23C24.6569 4 26 5.34315 26 7V19C26 20.6569 24.6569 22 23 22H3C1.34315 22 0 20.6569 0 19V3C0 1.34315 1.34315 0 3 0H10.1719ZM3 2C2.44772 2 2 2.44772 2 3V19C2 19.5523 2.44772 20 3 20H23C23.5523 20 24 19.5523 24 19V7C24 6.44772 23.5523 6 23 6H14.5859L10.8789 2.29297C10.6914 2.1055 10.437 2.00008 10.1719 2H3ZM21 16C21.5523 16 22 16.4477 22 17C22 17.5523 21.5523 18 21 18H5C4.44772 18 4 17.5523 4 17C4 16.4477 4.44772 16 5 16H21Z",fill:"currentColor"})})};const n=i(4848)},5978(e,t,i){var n=this&&this.__importDefault||function(e){return e&&e.__esModule?e:{default:e}};Object.defineProperty(t,"__esModule",{value:!0}),t.default=function({userInfo:e,onSignOut:t,showGetStarted:i,footer:n}){var s;const l="dark"===(0,r.useTheme)().name;return(0,o.jsxs)(m,{children:[null,(0,o.jsxs)(x,{children:[(0,o.jsx)(C,{children:(0,o.jsxs)(P,{children:[(0,o.jsx)(I,{children:(0,u.str)("optionsOnboardingTitle")}),(0,o.jsx)(A,{children:(0,u.str)("optionsOnboardingSubtitle")})]})}),f.ONBOARDING_STEPS.map((e=>(0,o.jsx)(F,{step:e,isDark:l},e.id))),i&&(0,o.jsx)(C,{children:(0,o.jsxs)(_,{children:[(0,o.jsx)(R,{children:(0,u.str)("optionsOnboardingReadyTitle")}),(0,o.jsx)(A,{children:(0,u.str)("optionsOnboardingReadyDescription")}),(0,o.jsx)(T,{use:"standard",size:"medium",text:(0,u.str)("optionsOnboardingCta"),onClick:E})]})}),n&&(0,o.jsx)(C,{children:n})]})]})};const o=i(4848),r=i(7437),s=n(i(8202)),l=n(i(4547)),a=i(8480),d=i(9625),c=n(i(3917)),u=i(9865),h=i(3901),f=i(9382),p=i(6719),g="@media (max-width: 720px)",m=(0,s.default)(l.default)((({theme:e})=>({flexDirection:"column",alignItems:"center",width:"100%",minHeight:"100vh",backgroundColor:e.semanticColors.backgroundSecondary,padding:"24px 36px 96px",gap:40,[g]:{padding:"24px 24px 96px",gap:32}}))),x=(0,s.default)(l.default)((({theme:e})=>({flexDirection:"column",width:896,maxWidth:"100%",borderRadius:13,border:`1px solid ${e.semanticColors.border}`,backgroundColor:e.semanticColors.background,overflow:"hidden"}))),b=(0,s.default)(l.default)({width:"100%",alignItems:"center",gap:24}),j=s.default.a({display:"flex",alignItems:"center",justifyContent:"center",width:24,height:40,flexShrink:0}),v=(0,s.default)(l.default)({flex:1,flexShrink:1,minWidth:0,alignItems:"center",justifyContent:"flex-end",gap:16}),y=s.default.img({width:40,height:40,flexShrink:0,objectFit:"cover",borderRadius:"50%"}),w=(0,s.default)(l.default)({flexDirection:"column",alignItems:"flex-end",flexShrink:1,minWidth:0}),S=(0,s.default)(c.default)({fontWeight:600,lineHeight:"18px",textAlign:"right",overflowWrap:"anywhere"}),O=s.default.button((({theme:e})=>({appearance:"none",background:"none",border:0,padding:0,color:e.semanticColors.textPrimary,fontFamily:"Inter",fontSize:13,lineHeight:"18px",textDecoration:"underline",cursor:"pointer","&:focus-visible":{outline:`2px solid ${e.semanticColors.editorColor}`,outlineOffset:4}}))),C=(0,s.default)(l.default)((({theme:e})=>({flexDirection:"row",alignItems:"flex-start",gap:40,width:"100%",padding:48,borderBottom:`1px solid ${e.semanticColors.border}`,"&:last-of-type":{borderBottom:"none"},[g]:{flexDirection:"column",padding:24,gap:24}}))),_=(0,s.default)(l.default)({flexDirection:"column",flex:1,minWidth:0,gap:16}),P=(0,s.default)(l.default)({flexDirection:"column",gap:16,width:360,maxWidth:"100%"}),I=s.default.h1((({theme:e})=>({margin:0,fontFamily:"Inter",fontSize:32,fontWeight:600,lineHeight:"40px",letterSpacing:"-0.64px",color:e.semanticColors.textPrimary}))),R=s.default.h2((({theme:e})=>({margin:0,fontFamily:"Inter",fontSize:24,fontWeight:600,lineHeight:"32px",letterSpacing:"-0.48px",color:e.semanticColors.textPrimary}))),k=s.default.span((({theme:e})=>({fontFamily:"Inter",fontSize:24,fontWeight:400,lineHeight:"32px",letterSpacing:"-0.48px",color:"dark"===e.name?"rgba(255, 255, 255, 0.4)":"rgba(0, 0, 0, 0.3)"}))),A=s.default.p((({theme:e})=>({margin:0,fontFamily:"Inter",fontSize:16,fontWeight:400,lineHeight:"24px",color:e.semanticColors.textSecondary,whiteSpace:"pre-line"}))),T=(0,s.default)(a.Button)({alignSelf:"flex-start",justifyContent:"center"}),D=s.default.img((({theme:e})=>({boxSizing:"border-box",width:400,height:291,flexShrink:0,objectFit:"cover",borderRadius:5,border:`1px solid ${e.semanticColors.border}`,[g]:{width:"100%",height:"auto"}})));function E(){(0,h.trackEvent)("onboarding_cta_clicked",{source:"options"}),window.location.assign((0,p.buildOptionsUrl)(chrome.runtime.getURL("options.html"),p.OPTIONS_REASON.needsPermissions,(0,p.parseOptionsToolbarRequestId)(window.location.search)))}function F({step:e,isDark:t}){return(0,o.jsxs)(C,{children:[(0,o.jsxs)(_,{children:[(0,o.jsxs)(l.default,{style:{flexDirection:"column"},children:[(0,o.jsx)(k,{children:e.number}),(0,o.jsx)(R,{children:(0,u.str)(e.titleKey)})]}),(0,o.jsx)(A,{children:(0,u.str)(e.descriptionKey)})]}),(0,o.jsx)(D,{src:chrome.runtime.getURL(t?e.imageDark:e.imageLight),alt:(0,u.str)(e.imageAltKey)})]})}},6719(e,t){Object.defineProperty(t,"__esModule",{value:!0}),t.OPTIONS_REASON=void 0,t.optionsReasonForToolbarOutcome=function(e){return"needs_permissions"===e?t.OPTIONS_REASON.needsPermissions:"needs_file_access"===e?t.OPTIONS_REASON.needsFileAccess:void 0},t.buildOptionsUrl=function(e,t,n){const o=new URLSearchParams;t&&o.set(i,t),n&&o.set("request_id",n);const r=o.toString();return r?`${e}?${r}`:e},t.parseOptionsToolbarRequestId=function(e){var t;return null!==(t=new URLSearchParams(e).get("request_id"))&&void 0!==t?t:void 0},t.parseOptionsReason=function(e){const t=new URLSearchParams(e).get(i);return null!==(o=t)&&n.has(o)?t:null;var o},t.OPTIONS_REASON={needsFileAccess:"needs_file_access",needsPermissions:"needs_permissions",onboarding:"onboarding"};const i="reason",n=new Set(Object.values(t.OPTIONS_REASON))},8681(e,t){Object.defineProperty(t,"__esModule",{value:!0}),t.CAPTURE_PERMISSIONS=void 0,t.CAPTURE_PERMISSIONS={origins:["<all_urls>"],permissions:["scripting","pageCapture","clipboardWrite"]}},9102(e,t,i){var n=this&&this.__awaiter||function(e,t,i,n){return new(i||(i=Promise))((function(o,r){function s(e){try{a(n.next(e))}catch(e){r(e)}}function l(e){try{a(n.throw(e))}catch(e){r(e)}}function a(e){var t;e.done?o(e.value):(t=e.value,t instanceof i?t:new i((function(e){e(t)}))).then(s,l)}a((n=n.apply(e,t||[])).next())}))},o=this&&this.__importDefault||function(e){return e&&e.__esModule?e:{default:e}};Object.defineProperty(t,"__esModule",{value:!0});const r=i(4848),s=o(i(6540)),l=o(i(961)),a=i(7040),d=o(i(8202)),c=i(6031),u=i(4055),h=o(i(3087)),f=o(i(4547)),p=o(i(3917)),g=i(5819),m=i(8480),x=i(9865),b=i(9625),j=i(3901),v=i(5614),y=i(4484),w=o(i(5978)),S=i(3768),O=i(5902),C=i(1958),_=i(4632),P=i(8681),I=i(6719),R=i(1804),k=i(8455),A=i(4276),T=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",backgroundColor:e.semanticColors.background,padding:24,gap:16}))),D=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"column",alignItems:"center",width:400,padding:"32px 24px",backgroundColor:e.semanticColors.background,borderRadius:8,boxShadow:"0px 2px 5px 0px rgba(0, 0, 0, 0.15), 0px 10px 24px 0px rgba(0, 0, 0, 0.18)",gap:16}))),E=(0,d.default)(D)({padding:0,gap:0,overflow:"hidden"}),F=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"row",alignItems:"center",width:"100%",padding:"0 24px",borderBottom:`1px solid ${e.semanticColors.border}`}))),M=(0,d.default)(F)({width:"calc(100% + 48px)",maxWidth:"none",margin:"-16px -24px 24px",padding:"0 24px 16px"}),L=(0,d.default)(f.default)({flexDirection:"row",alignItems:"center",flexShrink:1,minWidth:0,gap:8}),N=(0,d.default)(p.default)({flexShrink:1,minWidth:0,overflowWrap:"anywhere",textAlign:"right"}),W=(0,d.default)(N)({fontWeight:500}),z=(0,d.default)(f.default)((({size:e})=>({height:e,width:e,borderRadius:"100%",overflow:"hidden"}))),H=d.default.img({width:"100%",height:"100%"}),U=(0,d.default)(F)({height:72}),B=(0,d.default)(E)((({theme:e})=>({borderRadius:12,border:`1px solid ${e.semanticColors.border}`,boxShadow:"none"}))),q=(0,d.default)(F)({height:56}),K=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",backgroundColor:e.semanticColors.background}))),$=(0,d.default)(f.default)({flexDirection:"column",alignItems:"center",gap:16,width:"100%",padding:"24px 0 32px"}),G=(0,d.default)(f.default)((({theme:e})=>({alignItems:"center",justifyContent:"center",width:48,height:48,borderRadius:"50%",backgroundColor:"#E5F4FF",color:e.semanticColors.editorColor}))),V=(0,d.default)(p.default)({textAlign:"center"}),Z=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12,width:"100%",padding:"12px 16px",borderRadius:8,border:`1px solid ${e.semanticColors.border}`}))),J=(0,d.default)(m.Button)({width:"100%",justifyContent:"center"}),Q=(0,d.default)(m.Button)((({theme:e})=>({display:"inline-flex",height:"auto",padding:0,lineHeight:"inherit",color:e.colors.figmaBlue}))),X=(0,d.default)(p.default)((({theme:e})=>({display:"block",marginTop:12,textAlign:"center",color:e.semanticColors.textSecondary,overflowWrap:"anywhere"}))),Y=(0,d.default)(f.default)((({theme:e})=>({flexDirection:"row",alignItems:"center",gap:8,width:"100%",padding:"12px 16px",borderRadius:8,backgroundColor:"#FCF1CC",color:e.semanticColors.textPrimary}))),ee=(0,d.default)(f.default)({flexDirection:"column",alignItems:"stretch",gap:8,width:"100%"}),te=(0,d.default)(E)({borderRadius:5}),ie=(0,d.default)(f.default)({flexDirection:"column",alignItems:"center",width:"100%",padding:48,gap:32}),ne=(0,d.default)(f.default)({flexDirection:"column",alignItems:"center",width:"100%",gap:16}),oe=(0,d.default)(p.default)({display:"block",alignSelf:"stretch",flexShrink:1,minWidth:0,fontWeight:450}),re=d.default.ul({display:"flex",flexDirection:"column",gap:10,width:"100%",padding:0,margin:0,listStyle:"none"}),se=d.default.li({display:"flex",alignItems:"flex-start",gap:8}),le=(0,d.default)(g.IconImage)({marginTop:5,flexShrink:0}),ae=d.default.strong({fontWeight:550});function de({message:e}){return(0,r.jsxs)(Y,{role:"alert",children:[(0,r.jsx)(_.WarningIcon,{}),(0,r.jsx)(p.default,{textSize:"small",children:e})]})}function ce({children:e}){return(0,r.jsxs)(se,{children:[(0,r.jsx)(le,{src:chrome.runtime.getURL("img/permission-check.svg"),alt:""}),(0,r.jsx)(oe,{textSize:"medium",children:e})]})}function ue(){return null}const he=(0,u.createPopupStore)();l.default.render((0,r.jsx)(s.default.StrictMode,{children:(0,r.jsx)(a.Provider,{store:he,children:(0,r.jsx)((function(){const e=(0,a.useDispatch)(),{view:t,userInfo:i,hasCapturePermissions:o,permissionError:l,refreshPermissions:d}=(0,S.useOptionsView)(),[u,f]=s.default.useState(!1),[g,m]=s.default.useState(!1),[_,E]=s.default.useState(null),F=s.default.useRef({pendingToolbarRequestId:(0,I.parseOptionsToolbarRequestId)(window.location.search),isFinishing:!1}),M=s.default.useCallback((e=>n(this,void 0,void 0,(function*(){E(null);try{yield e()}catch(e){const t=e instanceof Error?e:new Error(String(e));E(t),(0,A.logSentryError)(t)}}))),[]),L=s.default.useCallback((()=>n(this,void 0,void 0,(function*(){const e=F.current;if(!e.isFinishing){e.isFinishing=!0;try{const t=e.pendingToolbarRequestId;if(t){const i=yield(0,k.sendMessageToBackground)("H2D_OPEN_TOOLBAR",{requestId:t});if("opened"!==i)return void window.location.assign((0,I.buildOptionsUrl)(chrome.runtime.getURL("options.html"),(0,I.optionsReasonForToolbarOutcome)(i),"source_unavailable"===i?void 0:t));e.pendingToolbarRequestId=void 0,window.history.replaceState(null,"",chrome.runtime.getURL("options.html")),yield chrome.storage.session.remove((0,R.toolbarRequestKey)(t))}const i=yield chrome.tabs.getCurrent();void 0!==(null==i?void 0:i.id)&&(yield chrome.tabs.remove(i.id))}finally{e.isFinishing=!1}}}))),[]);s.default.useEffect((()=>{"guide"!==t||!0!==o||l||_||!F.current.pendingToolbarRequestId||M(L)}),[t,o,l,_,M,L]);const N=()=>n(this,void 0,void 0,(function*(){m(!1),(yield chrome.permissions.request(P.CAPTURE_PERMISSIONS))?yield d():m(!0)})),W=()=>n(this,void 0,void 0,(function*(){yield chrome.tabs.create({url:`chrome://extensions/?id=${chrome.runtime.id}`})})),z=()=>n(this,void 0,void 0,(function*(){f(!1),(yield chrome.extension.isAllowedFileSchemeAccess())?yield L():f(!0)})),H=null!==_||l,U=H?(0,r.jsx)(de,{message:(0,x.str)("h2dActionFailed")}):null;switch(t){case"loading":return(0,r.jsx)(h.default,{children:(0,r.jsx)(K,{children:(0,r.jsx)(p.default,{textSize:"medium",children:(0,x.str)("h2dLoadingText")})})});case"guide":return(0,r.jsx)(h.default,{children:(0,r.jsx)(w.default,{userInfo:i,showGetStarted:!1===o,footer:H?(0,r.jsxs)(ee,{children:[U,(0,r.jsx)(J,{use:"standard",size:"medium",text:(0,x.str)("authErrorGenericRefreshButton"),onClick:()=>{M(l?d:L)}})]}):null})});case"logged_out":return(0,r.jsx)(h.default,{children:(0,r.jsx)(T,{children:(0,r.jsxs)(B,{children:[(0,r.jsx)(q,{children:(0,r.jsx)(y.PopupFigmaLogo,{})}),(0,r.jsx)(v.AuthUI,{branding:"html_capture",source:"content"})]})})});case"file_access":return(0,r.jsx)(h.default,{children:(0,r.jsx)(T,{children:(0,r.jsxs)(D,{children:[(0,r.jsx)(ue,{userInfo:i}),(0,r.jsxs)($,{children:[(0,r.jsx)(G,{children:(0,r.jsx)(O.FolderIcon,{})}),(0,r.jsx)(V,{textSize:"headingMedium",children:(0,x.str)("optionsFileAccessTitle")}),(0,r.jsxs)(Z,{children:[(0,r.jsx)(p.default,{textSize:"small",children:(0,x.str)("optionsFileAccessSetting")}),(0,r.jsx)(C.ToggleIcon,{})]})]}),(0,r.jsxs)(ee,{children:[U,!H&&u&&(0,r.jsx)(de,{message:(0,x.str)("optionsFileAccessRetryHint")}),(0,r.jsx)(J,{use:"standard",size:"medium",text:(0,x.str)("optionsFileAccessCta"),onClick:()=>{M(W)}}),(0,r.jsx)(J,{use:"hollow",size:"medium",text:(0,x.str)("optionsFileAccessRetry"),onClick:()=>{M(l?d:z)}})]})]})})});case"permissions":return(0,r.jsx)(h.default,{children:(0,r.jsx)(T,{children:(0,r.jsxs)(te,{children:[(0,r.jsx)(ue,{userInfo:i,permissionRequest:!0}),(0,r.jsxs)(ie,{children:[(0,r.jsxs)(ne,{children:[(0,r.jsx)("img",{src:chrome.runtime.getURL("img/capture-permissions.svg"),width:56,height:56,alt:""}),(0,r.jsx)(V,{textSize:"headingMedium",children:(0,x.str)("optionsCapturePermissionsTitle")}),(0,r.jsx)(oe,{textSize:"medium",children:(0,x.str)("optionsCapturePermissionsIntro")}),(0,r.jsxs)(re,{children:[(0,r.jsx)(ce,{children:(0,x.strRich)("optionsCapturePermissionsWebsiteDescription",(0,r.jsx)(ae,{children:(0,x.str)("optionsCapturePermissionsWebsiteTitle")}))}),(0,r.jsx)(ce,{children:(0,x.strRich)("optionsCapturePermissionsClipboardDescription",(0,r.jsx)(ae,{children:(0,x.str)("optionsCapturePermissionsClipboardTitle")}))})]})]}),(0,r.jsxs)(ee,{children:[U,!H&&g&&(0,r.jsx)(de,{message:(0,x.str)("optionsCapturePermissionsDeniedHint")}),(0,r.jsx)(J,{use:"standard",size:"medium",text:(0,x.str)(l?"authErrorGenericRefreshButton":"optionsCapturePermissionsCta"),onClick:()=>{M(l?d:N)}}),null]})]})]})})});default:return function(e){throw new Error(`Unhandled options view: ${String(e)}`)}(t)}}),{})})}),document.getElementById("root"))},9382(e,t){Object.defineProperty(t,"__esModule",{value:!0}),t.ONBOARDING_STEPS=void 0,t.ONBOARDING_STEPS=[{id:"pin",number:"01",titleKey:"optionsOnboardingPinTitle",descriptionKey:"optionsOnboardingPinDescription",imageAltKey:"optionsOnboardingPinImageAlt",imageLight:"img/onboarding-pin.png",imageDark:"img/onboarding-pin-dark.png"},{id:"capture",number:"02",titleKey:"optionsOnboardingCaptureTitle",descriptionKey:"optionsOnboardingCaptureDescription",imageAltKey:"optionsOnboardingCaptureImageAlt",imageLight:"img/onboarding-capture.png",imageDark:"img/onboarding-capture-dark.png"},{id:"paste",number:"03",titleKey:"optionsOnboardingPasteTitle",descriptionKey:"optionsOnboardingPasteDescription",imageAltKey:"optionsOnboardingPasteImageAlt",imageLight:"img/onboarding-paste.png",imageDark:"img/onboarding-paste-dark.png"}]},9401(e,t,i){var n=this&&this.__awaiter||function(e,t,i,n){return new(i||(i=Promise))((function(o,r){function s(e){try{a(n.next(e))}catch(e){r(e)}}function l(e){try{a(n.throw(e))}catch(e){r(e)}}function a(e){var t;e.done?o(e.value):(t=e.value,t instanceof i?t:new i((function(e){e(t)}))).then(s,l)}a((n=n.apply(e,t||[])).next())}))},o=this&&this.__importDefault||function(e){return e&&e.__esModule?e:{default:e}};Object.defineProperty(t,"__esModule",{value:!0}),t.useCapturePermissions=function(){const[e,t]=r.default.useState(null),[i,o]=r.default.useState(!1),a=r.default.useCallback((()=>n(this,void 0,void 0,(function*(){try{t(yield chrome.permissions.contains(s.CAPTURE_PERMISSIONS)),o(!1)}catch(e){o(!0),(0,l.logSentryError)(e instanceof Error?e:new Error(String(e)))}}))),[]);return r.default.useEffect((()=>{const e=()=>{a()};return e(),chrome.permissions.onAdded.addListener(e),chrome.permissions.onRemoved.addListener(e),()=>{chrome.permissions.onAdded.removeListener(e),chrome.permissions.onRemoved.removeListener(e)}}),[a]),{hasCapturePermissions:e,permissionError:i,refreshPermissions:a}};const r=o(i(6540)),s=i(8681),l=i(4276)}},o={};function r(e){var t=o[e];if(void 0!==t)return t.exports;var i=o[e]={exports:{}};return n[e].call(i.exports,i,i.exports,r),i.exports}r.m=n,e=[],r.O=(t,i,n,o)=>{if(!i){var s=1/0;for(c=0;c<e.length;c++){for(var[i,n,o]=e[c],l=!0,a=0;a<i.length;a++)(!1&o||s>=o)&&Object.keys(r.O).every((e=>r.O[e](i[a])))?i.splice(a--,1):(l=!1,o<s&&(s=o));if(l){e.splice(c--,1);var d=n();void 0!==d&&(t=d)}}return t}o=o||0;for(var c=e.length;c>0&&e[c-1][2]>o;c--)e[c]=e[c-1];e[c]=[i,n,o]},r.n=e=>{var t=e&&e.__esModule?()=>e.default:()=>e;return r.d(t,{a:t}),t},i=Object.getPrototypeOf?e=>Object.getPrototypeOf(e):e=>e.__proto__,r.t=function(e,n){if(1&n&&(e=this(e)),8&n)return e;if("object"==typeof e&&e){if(4&n&&e.__esModule)return e;if(16&n&&"function"==typeof e.then)return e}var o=Object.create(null);r.r(o);var s={};t=t||[null,i({}),i([]),i(i)];for(var l=2&n&&e;("object"==typeof l||"function"==typeof l)&&!~t.indexOf(l);l=i(l))Object.getOwnPropertyNames(l).forEach((t=>s[t]=()=>e[t]));return s.default=()=>e,r.d(o,s),o},r.d=(e,t)=>{for(var i in t)r.o(t,i)&&!r.o(e,i)&&Object.defineProperty(e,i,{enumerable:!0,get:t[i]})},r.g=function(){if("object"==typeof globalThis)return globalThis;try{return this||new Function("return this")()}catch(e){if("object"==typeof window)return window}}(),r.o=(e,t)=>Object.prototype.hasOwnProperty.call(e,t),r.r=e=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},r.j=575,(()=>{var e={575:0};r.O.j=t=>0===e[t];var t=(t,i)=>{var n,o,[s,l,a]=i,d=0;if(s.some((t=>0!==e[t]))){for(n in l)r.o(l,n)&&(r.m[n]=l[n]);if(a)var c=a(r)}for(t&&t(i);d<s.length;d++)o=s[d],r.o(e,o)&&e[o]&&e[o][0](),e[o]=0;return r.O(c)},i=self.webpackChunkchrome_extension_typescript_starter=self.webpackChunkchrome_extension_typescript_starter||[];i.forEach(t.bind(null,0)),i.push=t.bind(null,i.push.bind(i))})();var s=r.O(void 0,[121],(()=>r(9102)));s=r.O(s)})();
-//# 
+/* Permission/status controller. No tutorial, login, vendor framework or network. */
+(() => {
+  "use strict";
+  const Core = globalThis.PageCaptureCore;
+  const panel = document.getElementById("settings");
+  const state = {
+    permissions: null,
+    permissionError: false,
+    denied: false,
+    fileDenied: false,
+    busy: false,
+    finishing: false,
+    error: "",
+    reason: Core.parseOptionsReason(location.search),
+    requestId: Core.parseOptionsToolbarRequestId(location.search)
+  };
+  const text = (key, substitutions) => chrome.i18n.getMessage(key, substitutions) || key;
+  const view = () => Core.selectOptionsView({ hasCapturePermissions: state.permissions, optionsReason: state.reason });
+
+  function element(tag, content, className) {
+    const node = document.createElement(tag);
+    if (content) node.textContent = content;
+    if (className) node.className = className;
+    return node;
+  }
+  function notice(message) {
+    const node = element("div", message, "notice");
+    node.setAttribute("role", "alert");
+    panel.append(node);
+  }
+  function button(label, action, secondary = false) {
+    const node = element("button", label, secondary ? "secondary" : "");
+    node.type = "button";
+    node.disabled = state.busy;
+    node.addEventListener("click", () => run(action));
+    panel.append(node);
+  }
+  async function run(action) {
+    if (state.busy) return;
+    state.busy = true;
+    state.error = "";
+    render();
+    try { await action(); }
+    catch { state.error = text("h2dActionFailed"); }
+    finally { state.busy = false; render(); }
+  }
+  async function sendCommand(cmd, payload) {
+    const response = await chrome.runtime.sendMessage({ cmd, payload });
+    if (!response?.success) throw new Error("Local operation failed");
+    return response.value;
+  }
+  async function finish() {
+    if (state.finishing) return;
+    state.finishing = true;
+    try {
+      if (state.requestId) {
+        const outcome = await sendCommand("H2D_OPEN_TOOLBAR", { requestId: state.requestId });
+        if (outcome !== "opened") {
+          if (outcome === "needs_permissions" || outcome === "needs_file_access") {
+            location.assign(Core.buildOptionsUrl(chrome.runtime.getURL("options.html"), outcome, state.requestId));
+          } else {
+            await chrome.storage.session.remove(Core.toolbarRequestKey(state.requestId));
+            state.requestId = undefined;
+            state.reason = null;
+            history.replaceState(null, "", chrome.runtime.getURL("options.html"));
+            state.error = text("optionsSourceUnavailable");
+            render();
+          }
+          return;
+        }
+        await chrome.storage.session.remove(Core.toolbarRequestKey(state.requestId));
+        state.requestId = undefined;
+      }
+      const tab = await chrome.tabs.getCurrent();
+      if (Number.isInteger(tab?.id)) await chrome.tabs.remove(tab.id);
+      else window.close();
+    } finally { state.finishing = false; }
+  }
+  async function refreshPermissions() {
+    try {
+      state.permissions = await chrome.permissions.contains(Core.CAPTURE_PERMISSIONS);
+      state.permissionError = false;
+    } catch {
+      state.permissions = false;
+      state.permissionError = true;
+    }
+    render();
+    if (view() === "ready" && state.requestId && !state.error && !state.finishing) {
+      try { await finish(); }
+      catch { state.error = text("h2dActionFailed"); render(); }
+    }
+  }
+  async function requestPermissions() {
+    state.denied = false;
+    if (await chrome.permissions.request(Core.CAPTURE_PERMISSIONS)) await refreshPermissions();
+    else state.denied = true;
+  }
+  async function retryFileAccess() {
+    state.fileDenied = false;
+    if (await chrome.extension.isAllowedFileSchemeAccess()) await finish();
+    else state.fileDenied = true;
+  }
+  function render() {
+    panel.replaceChildren();
+    panel.classList.toggle("loading", view() === "loading");
+    if (view() === "loading" || (view() === "ready" && state.requestId && !state.error)) {
+      panel.append(element("p", text("h2dLoadingText")));
+      return;
+    }
+    if (view() === "file_access") {
+      panel.append(element("h1", text("optionsFileAccessTitle")));
+      const pill = element("div", "", "pill");
+      pill.append(element("span", text("optionsFileAccessSetting")), element("span", "", "toggle"));
+      pill.lastChild.setAttribute("aria-hidden", "true");
+      panel.append(pill);
+      if (state.fileDenied) notice(text("optionsFileAccessRetryHint"));
+      if (state.error) notice(state.error);
+      button(text("optionsFileAccessCta"), () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }));
+      button(text("optionsFileAccessRetry"), retryFileAccess, true);
+      return;
+    }
+    if (view() === "permissions") {
+      const icon = document.createElement("img");
+      icon.src = chrome.runtime.getURL("img/capture-permissions.svg");
+      icon.className = "icon";
+      icon.alt = "";
+      panel.append(icon, element("h1", text("optionsCapturePermissionsTitle")), element("p", text("optionsCapturePermissionsIntro")));
+      const list = document.createElement("ul");
+      for (const [description, title] of [
+        ["optionsCapturePermissionsWebsiteDescription", "optionsCapturePermissionsWebsiteTitle"],
+        ["optionsCapturePermissionsClipboardDescription", "optionsCapturePermissionsClipboardTitle"]
+      ]) {
+        const item = document.createElement("li");
+        const check = document.createElement("img");
+        check.src = chrome.runtime.getURL("img/permission-check.svg");
+        check.alt = "";
+        item.append(check, element("span", text(description, [text(title)])));
+        list.append(item);
+      }
+      panel.append(list);
+      if (state.denied) notice(text("optionsCapturePermissionsDeniedHint"));
+      if (state.error || state.permissionError) notice(state.error || text("h2dActionFailed"));
+      button(text(state.permissionError ? "retryButton" : "optionsCapturePermissionsCta"), state.permissionError ? refreshPermissions : requestPermissions);
+      return;
+    }
+    panel.append(element("h1", text("optionsCaptureReadyTitle")), element("p", text("optionsCaptureReadyDescription")));
+    if (state.error) notice(state.error);
+    button(text(state.error && state.requestId ? "retryButton" : "closeButton"), finish);
+  }
+
+  chrome.permissions.onAdded.addListener(refreshPermissions);
+  chrome.permissions.onRemoved.addListener(refreshPermissions);
+  render();
+  refreshPermissions();
+})();
