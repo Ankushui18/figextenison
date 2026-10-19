@@ -58,7 +58,7 @@ const style = `*{box-sizing:border-box}body{font:16px/24px Arial;margin:0;paddin
           } } });
         } });
       } }), tabId);
-      await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+      await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
       await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
       return tabId;
     };

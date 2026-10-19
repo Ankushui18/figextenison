@@ -1,4 +1,4 @@
-# Page Capture — 1.7.3
+# Page Capture — 1.7.6
 
 Local page capture with an optional **Design System Generator** and **Copy design system** action. The established dark toolbar, blue accent, capture controls and permission help are retained. No account, onboarding, runtime framework or build step is required.
 
@@ -9,6 +9,58 @@ Local page capture with an optional **Design System Generator** and **Copy desig
 3. Choose **Load unpacked** and select the folder containing `manifest.json`.
 4. To update an existing unpacked installation without changing its ID, replace its files in the existing folder and click **Reload** on the extension card.
 5. Refresh website tabs that already had the previous toolbar injected.
+
+## Fixed in 1.7.8: Capture scroll area accepts any point inside the scroller
+
+Previously, clicking a card or text *inside* a scrollable region was rejected ("Select an element with vertical overflow") unless you first adjusted the selection upward with the arrow keys. The action now resolves the clicked element to its nearest vertically scrollable ancestor (the page itself is never chosen) and captures that. Elements with no scrollable ancestor still show the same error. A second browser test (`tests/scrollarea-child-browser.cjs`) covers the direct-child selection.
+
+## Cleanup in 1.7.7: dead code and a distinct scroll-area icon
+
+- Removed unused code: an unreferenced helper and error class in the toolbar bundle, two unused icons and two unused locale strings.
+- **Capture scroll area** now has its own icon instead of sharing the pointer icon with **Select element**.
+- No behavior, permission or network changes; all suites pass.
+
+## Fixed in 1.7.6: explicit full internal scroll-area capture
+
+Dashboard content inside a nested vertical scroller can extend far beyond the page's document root. The regular page capture and existing **Select element** action keep their established behavior; nothing automatically expands every overflow container.
+
+- A new **Capture scroll area** action lets you explicitly choose one vertically scrollable element. The chosen region must use `overflow-y: auto`, `scroll` or `overlay` and contain more content than its viewport; an unsuitable selection is rejected with a clear message.
+- Only the selected region's **serialized capture model** is expanded to its full scroll height. If you select it while scrolled, child coordinates are normalized to the content's top so both the first and final sections are present. The region's captured width remains the current responsive width.
+- The source page is not programmatically scrolled or resized. Its DOM, current scroll position and viewport are preserved; no new tab, window or page navigation is used. There is no automatic expansion of dropdowns, carousels or unrelated overflow containers.
+- The normal full-page capture, visible-section selection, no-new-tabs responsive capture, manual local clipboard workflow and intentionally raw **Capture code** action remain distinct. Permissions, host permissions, CSP and remote-asset rules are unchanged.
+- This captures content represented in the current DOM. It does not force infinite feeds, virtualized rows, lazy app rendering or nested scroll areas inside the chosen region to load/expand. A live Figma paste was not part of this fixture verification.
+
+**Regression fixture:** at an 813px-high viewport, ordinary document capture has an 813px root while the selected internal area is 2,518px tall. The new explicit action produces a 2,518px capture root with the final section inside it, both at scrollTop 0 and after a 560px internal scroll. At a 393px viewport the root remains 393px wide. Browser tests verify the source DOM/scroll/viewport are unchanged, the action creates no new page, and no remote requests occur. **1.7.6 verification: 259 Node checks + all 101 existing Chromium checks + a dedicated scroll-area Chromium regression.** The unchanged Viewports browser suite hit its known intermittent 200px-open timing failure once in the combined run and passed 11/11 on isolated retry.
+
+Install the **whole ZIP**, reload the extension and **refresh source tabs** to receive the new button and helper.
+
+## Fixed in 1.7.5: lazy-image completeness and asset reporting
+
+- A loaded 1×1 **HTTP** image is now treated as a placeholder when the page also supplies an explicit lazy-image target. A genuinely loaded image still wins; the source page is not edited.
+- Source selection now recognizes additional explicit image metadata (`data-actualsrc`, `data-lazy`, `data-url`, `data-image-src`, `data-hi-res-src`, `data-echo`, `data-flickity-lazyload`, `data-cfsrc`) and more lazy `srcset` variants, including on active `<picture>` sources. Candidate URLs still pass through the existing URL/privacy checks; no endpoints are guessed.
+- After a successful rich copy, the existing toolbar success notice reports aggregate image assets **included** versus **not embedded** across the captures being copied. It deliberately omits per-image URLs, page text and raw errors. A partial/unavailable image remains a partial capture; the notice does not claim blocked or failed assets were recovered.
+- The controlled Chromium regression fixture verified full-page Browser and 393px responsive copies: each embedded five valid candidates and honestly left one 404 image unembedded. Unit tests cover the added metadata patterns, media-aware sources, real-source precedence and private aggregate diagnostics. **1.7.5 verification: 258 Node checks + 101 Chromium groups** (14 capture, 25 generator, 15 editable-board, 11 viewport, 10 responsive, 8 full-page, 3 image-completeness, 15 capture-safety). All eight browser suites passed against the extracted release in individual sequential runs. On separate repeats, the unchanged Viewports test script intermittently timed out while opening its 200px panel or waiting for toolbar teardown; it passed all 11 checks on retry, and the 1.7.4 baseline suite also passed. Viewport capture logic was not changed in this image pass. No live Dribbble recheck or live Figma paste was performed for this patch.
+
+The no-new-tabs responsive workflow, selected-section path, current dark/blue design, permissions, host permissions and extension CSP remain unchanged. The blocked remote-recovery policy is not relaxed.
+
+Install the **whole ZIP**, reload the extension and **refresh source tabs** so the helpers and UI are replaced.
+
+## Fixed in 1.7.4: privacy, copy feedback, cancellation and size limits
+
+This is the first **P1 stability/privacy patch** from the 1.7.3 audit. It keeps the current dark/blue interface, the full-page/Dribbble repair, responsive captures without new tabs, the existing generator and the editable design-system board.
+
+- **Visual capture privacy:** hidden/non-rendered input, textarea and select nodes are omitted. Password values and nonvisual button/option/checkbox/radio value IDs are excluded while visible labels, selected/checked states and ordinary visible form values remain. The actual page is not edited. This is not general PII anonymization: visible content, titles, links and image URLs can still be sensitive.
+- **Older saved captures:** regular valid snapshots are sanitized when the toolbar loads and again before rich copying. IDs/previews/visible work are kept. Oversized or corrupt legacy captures are retained locally rather than deleted, but are blocked from export; recapture a smaller section and delete the old item to clear its original local data. Legacy raw/code-layer records are not silently rewritten.
+- **Honest copy feedback:** a blocked/failed automatic write now says the capture is saved and directs you to **Copy all**. Encoding and size failures have privacy-safe messages rather than source/error dumps. Preparing the clipboard can be cancelled; the final native write shows **Copying to clipboard** without a misleading Cancel button. Conflicting commands are held off until that write finishes. A native write already submitted to Chrome cannot be revoked.
+- **Cancellation through asset work:** the job signal now reaches image/SVG downloads, detached image/video conversion, blob/FileReader work and sender-bound worker recovery. Owned temporary resources/listeners are released; the original website's media are not paused or reset. Non-abortable native work may finish internally, but cancelled/stale results cannot trigger new capture/copy feedback. Completed captures already saved before clipboard preparation are retained.
+- **Normal design batch budgets:** all rich design batches, not just legacy code-layer batches, use **48 MiB JSON / 64 MiB rich HTML** limits. Bounded UTF-8 counting runs before expensive parse/base64 work, checks combined size and yields for cancellation. No silent truncation or partial automatic copy is substituted. Copy fewer captures, copy individual items, or select a smaller section if a batch is too large. The separate design-system-board limit remains **16 MiB**.
+- **Reachable error/retry controls:** long messages no longer push Copy all outside normal/narrow windows. The complete message is retained for the tooltip/live announcement, with existing compact icons used when space is tight. Success notices do not intercept clicks, and stale raw-code timers cannot clear a newer error.
+
+**Capture code remains intentionally raw:** it still copies `document.documentElement.outerHTML`, including original form values and the existing raw-mode limitations. The privacy filter and rich-batch budgets do not silently clean or truncate that explicit advanced action.
+
+No Chrome permission, host permission, CSP exception, account/upload path or additional capture RPC is added. The existing asset RPC gains sender-bound request/cancel IDs; sensitive destinations, public-URL validation, GET-only recovery, omitted credentials, redirect restrictions and MIME/image limits remain. In particular, **the restrictive remote-recovery CSP is not relaxed**.
+
+Install the **whole ZIP** (it adds `js/capture-safety.js`), reload the extension and **refresh source tabs** before testing. The 1.7.3 ZIP/workspace is not overwritten. At the 1.7.5 release cut, arbitrary internal scroll areas were still separate; 1.7.6 adds the explicit vertical scroll-area action described above. Project saving and any remote-recovery policy change remain separate. Live Figma paste is still a separate acceptance check.
 
 ## Fixed in 1.7.3: full-page images and missing lower sections
 
@@ -172,10 +224,14 @@ node tests/design-system-board-browser.cjs
 node tests/viewports-browser.cjs
 node tests/viewports-responsive-browser.cjs
 node tests/fullpage-browser.cjs
+node tests/scrollarea-browser.cjs
+node tests/scrollarea-child-browser.cjs
+node tests/image-completeness-browser.cjs
+node tests/capture-safety-browser.cjs
 ```
 
-All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board/viewport/responsive/full-page suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts. Generator/board tests share `tests/fixtures/design-system.html`; viewport tests use a deliberately long responsive fixture. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
+All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The generator/board/viewport/responsive/full-page/safety suites accept `ARTIFACT_DIR` for screenshots and fixture artifacts. Generator/board tests share `tests/fixtures/design-system.html`; viewport tests use a deliberately long responsive fixture. Test-only instrumentation and clipboard-read permission grants are absent from the runtime.
 
-Verified: **195 Node checks + 83 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive, 8 full-page). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Full-page tests add a 30-image lazy gallery, a 100%-height root, preserved footer/scrolled coordinates, 130-asset recovery, source preservation and decode cancellation. Fixture flows block/record remote requests; a separate real-site probe verifies Dribbble capture data. No live Figma paste was tested.
+**1.7.4 P1 verification (historical):** **242 Node checks + 98 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive, 8 full-page, 15 capture-safety). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Full-page tests add a 30-image lazy gallery, a 100%-height root, preserved footer/scrolled coordinates, 130-asset recovery, source preservation and decode cancellation. Safety tests additionally verify legacy migration, hidden/nonvisual-value redaction, native denied-copy/manual retry, pre-encoding size protection, safe encoding errors, preparation/download/disposal cancellation, non-cancellable native write phases, narrow retry controls, raw HTML preservation and real source-to-worker cancellation. Fixture flows block/record remote requests; a separate real-site probe verifies Dribbble capture data. No live Figma paste was tested.
 
-The 1.7.3 changes were prepared locally and have not been committed or pushed to the online repository.
+The 1.7.5 and 1.7.6 builds were prepared locally and have not been committed or pushed to the online repository.

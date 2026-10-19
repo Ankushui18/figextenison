@@ -46,7 +46,7 @@ function workerHarness() {
   const calls = [];
   const event = { addListener() {} };
   const sandbox = {
-    URL, URLSearchParams, AbortSignal, Promise, Blob, Response, Uint8Array,
+    URL, URLSearchParams, AbortController, AbortSignal, Promise, Blob, Response, Uint8Array,
     atob, crypto: require('node:crypto').webcrypto,
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -114,7 +114,7 @@ test('Recovery rejects malformed and unbounded asset lists', async () => {
   assert.equal(harness.calls.length, 0);
 });
 test('Capture engine keeps local clipboard formats, not removed telemetry helpers', () => {
-  const toolbar = read('js/h2d_toolbar.js');
+  const toolbar = read('js/h2d_toolbar.js') + read('js/capture-safety.js');
   assert.match(toolbar, /clipboard\.writeText\(/);
   assert.match(toolbar, /clipboard\.write\(/);
   assert.match(toolbar, /figh2d/);

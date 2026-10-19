@@ -35,10 +35,6 @@
     "message": "This page is too large to capture code.",
     "description": "Shown when the MHTML archive or its message exceeds the capture size limit."
   },
-  "h2dCaptureCodeBatchTooLarge": {
-    "message": "These captures are too large to copy together. Remove some captures and try again.",
-    "description": "Shown when a clipboard batch containing MHTML captures exceeds the paste size limit."
-  },
   "h2dCaptureCodeUnavailable": {
     "message": "Code capture is not available on this page.",
     "description": "Shown for unsupported tabs or missing capture context."
@@ -46,6 +42,26 @@
   "h2dSelectElementButton": {
     "message": "Select element",
     "description": "Button text to select a specific element on the page"
+  },
+  "h2dCaptureScrollAreaButton": {
+    "message": "Capture scroll area",
+    "description": "Button text to explicitly select one vertically scrollable page region and capture all of its content"
+  },
+  "selectScrollAreaToCapture": {
+    "message": "Select a scroll area",
+    "description": "Lead-in copy while choosing the specific scrollable region to capture"
+  },
+  "selectScrollAreaToCaptureCompact": {
+    "message": "Select scroll area",
+    "description": "Narrow-viewport variant of the scroll-area selection lead-in"
+  },
+  "h2dNoScrollableAreaError": {
+    "message": "Select an element with vertical overflow.",
+    "description": "Shown when the selected element is not an internally scrollable vertical region"
+  },
+  "h2dCaptureScrollAreaError": {
+    "message": "Failed to capture scroll area",
+    "description": "Fallback error message when capturing a selected scroll area fails"
   },
   "selectElementToCapture": {
     "message": "Select an element",
@@ -87,9 +103,9 @@
     "message": "Copied to clipboard",
     "description": "Success text shown after copying to clipboard"
   },
-  "h2dCopyFailed": {
-    "message": "Failed to copy",
-    "description": "Error text shown when clipboard write fails (e.g. permission denied, focus lost)"
+  "h2dImageAssetReport": {
+    "message": "Images: $1 included, $2 not embedded",
+    "description": "Aggregate result after copying a capture; counts are private and do not include asset URLs"
   },
   "h2dActionFailed": {
     "message": "Something went wrong",

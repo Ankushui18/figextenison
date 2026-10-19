@@ -35,7 +35,7 @@ const html = fs.readFileSync(path.join(__dirname, 'fixtures/fullpage.html'), 'ut
         Object.defineProperty(globalThis, 'PageCaptureDesignBoard', { value: { ...api, createCopier(helpers) { test.helpers = helpers; return api.createCopier(helpers); } } });
       } });
     } }), tabId);
-    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
     await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
     const isolated = (operation, args = {}) => worker.evaluate(async ({ tabId, operation, args }) => {
       const [result] = await chrome.scripting.executeScript({ target: { tabId }, args: [operation, args], func: async (operation, args) => {

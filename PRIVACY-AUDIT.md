@@ -1,10 +1,93 @@
 # Privacy and verification audit
 
-Version: **1.7.3**
+Version: **1.7.6**
 
 Review/test date: **19 October 2026**
 
-## Current release: 1.7.3 full-page completeness repair
+## Current release: 1.7.6 P2 explicit internal-scroll-area capture
+
+Baseline: the exact delivered **1.7.5 ZIP**, SHA-256 `45db78c5d4de6566ce7553ed65a09d5f64dedb22d5dfa632b767ad076535104e`. Work is isolated in `figextenison-scrollarea-audit`; the final 1.7.5 ZIP and previous workspaces are unchanged. This P2 adds an explicit capture path for one selected vertical scroll area. It does not silently expand every overflow element.
+
+### Reproduction and chosen safety design
+
+- The controlled fixture uses a fixed **1280×813** viewport. Its `#app` element is `overflow-y:auto`, 813px tall, and contains 2,518px of content, including a final footer. The document root stays 813px tall. Baseline `Capture design` therefore serializes the final footer at **y=2,304**, outside the 813px root. Ordinary **Select element** also remains an 813px viewport-sized capture.
+- The new **Capture scroll area** action asks the user to select a target and accepts only an actual vertical scrolling element (`overflow-y: auto`, `scroll` or `overlay`, with `scrollHeight > clientHeight`). An ordinary element is rejected; no page-wide scan or automatic expansion of dropdowns, carousels or other overflow nodes is introduced.
+- Full-height normalization is opt-in and operates on the serialized H2D model, not source styles/DOM. It rebases descendants from the chosen element's current `scrollTop`, expands only the root height to the content height, preserves the selected responsive width and corrects the model's root scroll metadata. This means a scroller already at scrollTop 560 still includes its first and final content sections without scrolling the live page.
+- Capture preview remains a screenshot of the selected element's real viewport bounds. The output/model height is not passed as if it were a page screenshot crop.
+- The new scroll-area logic does not set source `scrollTop`, resize the viewport, open a tab/window, navigate to the source URL or add a network/recovery path. The controlled fixture has no external assets and recorded zero remote requests. Browser verification compared source outerHTML, document scroll, app scrollTop and viewport dimensions before/after. Existing temporary asset decode/scrollbar helpers restore their original state; the established asset-handling policy remains unchanged.
+- This captures content already present in the DOM. It does not invoke infinite loading, reveal virtualized/offscreen app rows, rerun page scripts, or expand nested scrollers inside the chosen area. Sticky/fixed transformed content and site-specific rendering still require validation. Horizontal-only carousels are not the selected vertical-scroll target.
+- Existing current-page, visible-section, responsive no-new-tabs, clipboard and raw **Capture code** paths remain separate. No permissions, host permissions, CSP, service worker asset policy or remote recovery boundary changed. No live Figma paste is claimed.
+
+### Verification
+
+**259 Node checks passed.** The existing eight Chromium suites passed sequentially after the change (**101 groups**: 14 capture, 25 generator, 15 editable-board, 11 viewport, 10 responsive, 8 full-page, 3 image-completeness, 15 capture-safety); the dedicated internal-scroll-area Chromium fixture also passed. The unchanged Viewports suite hit its known intermittent 200px-open timing failure once in the combined run and passed all 11 groups on isolated retry. That fixture directly measured default document/section capture, explicit full-area model capture at scrollTop 0/560, the real toolbar action, and a 393px responsive viewport. It verified **2,518px** full height, the final section inside the root, widths **1280px / 393px**, unchanged live DOM/scroll/viewport, no extra page, and zero remote requests. Browser actions use the existing manual/local clipboard workflow; no paste into live Figma was attempted.
+
+Runtime: **721,055 bytes / 20 files**, including **346,905 bytes of JavaScript** (a 4,218-byte increase over 1.7.5). The archive also includes the new controlled fixture and browser regression. ZIP inventory/CRC, extracted bytes, version, JSON/JS syntax, and extracted-package tests are checked before delivery. No Git commit, push or upload is performed.
+
+## Historical release: 1.7.5 P2 image-completeness pass
+
+Baseline: the exact delivered **1.7.4 ZIP**, SHA-256 `1efe3f3fe08f6abac063398d494bccfdf9ad4f51fabdcac83b43ae1306b674bb`. Work was isolated in `figextenison-image-audit`; the 1.7.4 ZIP and prior P1 workspace remain unchanged. This pass repaired explicit lazy-image selection and reports aggregate media-copy outcomes; it did not claim a live Dribbble capture or Figma paste.
+
+### Source selection and responsive images
+
+- Reproduced the defect with a controlled `https://example.com/pixel.svg` whose loaded intrinsic size is 1×1 and whose `data-src` supplies a real image. Before the patch, `imageSource` returned the placeholder rather than the explicit target.
+- A loaded image of at most 2×2 intrinsic pixels is treated as a placeholder only when an explicit page-provided candidate exists. A larger, successfully loaded image continues to win over lazy metadata. No source attributes are changed in Browser/section capture; responsive capture changes only the isolated copy.
+- The explicit lazy-source allowlist now includes `data-src`, `data-lazy-src`, `data-original`, `data-original-src`, `data-actualsrc`, `data-lazy`, `data-url`, `data-image-src`, `data-hi-res-src`, `data-echo`, `data-flickity-lazyload` and `data-cfsrc`. Lazy `srcset` variants include `data-srcset`, `data-lazy-srcset` and `data-original-srcset`, including active `<picture>` sources. Standard `srcset` remains supported.
+- Existing dimensions/DPR bounds, template resolution, page-base URL resolution, blocked-host/protocol filtering and image-fetch boundaries remain. Active picture media is evaluated at the target responsive width. Open-shadow image copies are also visited. No guessed URLs, new tabs/windows, extra site-script execution, permission changes, host grants or CSP relaxations are introduced.
+
+### Aggregate copy status and privacy
+
+- After a successful rich clipboard write, the established transient success notice reports the number of image assets embedded and the number **not embedded** across the captures being copied. Rejected/unavailable requests remain failures; no recovery guarantee is implied.
+- The diagnostic is counts only: no image URL, hostname, page text, alt text or raw asset error is placed in UI status. A separate per-asset URL list was not added to avoid exposing private/credential-bearing page URLs. Assets remain in the user-requested local capture/clipboard data as before.
+- Remote worker recovery remains governed by the existing `connect-src 'self'` CSP, GET-only/omitted-credential/redirect restrictions, public-URL validation and image limits. Blocked/unavailable assets are reported as not embedded; they are not fetched by relaxing policy.
+
+### Verification
+
+Dependency-free tests cover HTTP 1×1 precedence, source non-mutation, additional lazy metadata/srcset patterns, active picture media, real-source precedence, safety-filter preservation, aggregate counts and the no-URL diagnostics contract. A local Chromium extension test exercised actual Browser and 393px responsive captures and native rich clipboard output. In each capture, five valid candidates were embedded and one controlled 404 stayed unembedded; the post-copy status reported **10 included / 2 not embedded** across the two copied snapshots. The live source image URLs/attributes, viewport and scroll were unchanged; no extra page/window/document visit or remote host request occurred. Counts in this section are from the local fixture, not a live site.
+
+**258 Node checks + 101 Chromium groups passed**: 14 capture, 25 generator, 15 editable-board, 11 viewport, 10 responsive, 8 full-page, 3 image-completeness and 15 capture-safety. All browser suites passed against the extracted 1.7.5 ZIP in individual sequential runs. Separate repeats exposed intermittent timing timeouts in the unchanged Viewports browser-test script (opening at 200px or waiting for toolbar teardown); its 11-group run passed on retry, and the 1.7.4 baseline suite also passed. Viewport capture logic was not modified in this image pass. The real extension/native clipboard fixture reports **5 included / 1 not embedded** for each of Browser and 393px copies, and **10 / 2** for the combined paste; its one 404 stays unembedded. The fixture and static/privacy tests record no external hosts, no new document visits/tabs/windows and no source DOM/scroll/viewport changes. No live Figma paste or public-site revalidation was performed. Incomplete capture of intentionally hidden content, nested scrollers, dynamically-generated content and remote assets blocked by browser/CSP/site policy remains possible.
+
+Runtime: **716,837 bytes / 20 files**, including **343,591 bytes of JavaScript** (a 3,993-byte increase over the 1.7.4 runtime); the archive also carries the additional local image-completeness browser test. ZIP inventory, CRCs, extracted bytes, version, JSON/JS syntax and regression suites are checked before delivery. No Git commit, push or upload is performed.
+
+## Prior release: 1.7.4 P1 stability/privacy repair
+
+Baseline: the delivered **1.7.3 ZIP**, SHA-256 `8ec22315c8851e187aab4c63aafd480e220b0a4985343822d327a08885036c78`. Work is isolated in `figextenison-stability-fix`; previous release files/workspaces are not changed. The user authorized starting the four P1 audit fixes, not a redesign, new-tab capture or a broader network policy.
+
+### Visual privacy and stored data
+
+- The engine skips nonvisual form controls based on their native hidden type, actual layout and computed display/visibility/opacity/content visibility. Off-screen but normally rendered controls are not considered hidden just because they are below the viewport. The source DOM is never cleared/edited to implement redaction.
+- Password values and nonvisual control-value IDs (button/option/select and checkbox/radio/file/image input values) are removed, preserving visible text, labels and checked/selected state. The serializer also sanitizes snapshot trees before storage, and clipboard preparation sanitizes older documents as defense in depth.
+- Ordinary legacy snapshot records are cleaned on load with IDs/previews preserved. JSON reading uses a budget; corrupt/oversized old records are kept locally with an export-blocked marker, not silently deleted. Their original local data can remain until the user deletes/recaptures them. Legacy raw/code-layer records and explicit Capture code are intentionally not silently rewritten. This is a scoped visual-form privacy fix, not universal PII/secret removal from visible content, source titles, asset URLs, links or raw HTML.
+
+### Copy correctness and byte budgets
+
+- New dependency-free `js/capture-safety.js` handles preparation, privacy, UTF-8 counting, owned async cleanup and copy phases. The worker injects it before the existing capture modules. Normal copy failures no longer return silently; automatic failures identify that the capture was saved and point to existing Copy all. Source JSON, private URLs and raw exception contents are not echoed in these messages.
+- All rich design batches use **48 MiB JSON / 64 MiB HTML** bounds. This extends the previous legacy-only guard to snapshot-only batches. Raw record bytes are counted before parse; combined bytes are checked before base64; expected HTML/base64 size is checked before the expensive data encoding; final Blob size is checked again. Counting yields regularly and respects cancellation. The board retains its existing separate **16 MiB** cap. This does not claim that all capture-time image/DOM allocations are bounded by the copy budget or that out-of-memory conditions are impossible.
+- Preparing is cancellable; native writing is explicitly marked and protected against overlapping raw/design/selection commands. Native writes cannot be undone once submitted. Cancel/disposal after a completed storage request cannot unsave it automatically; already completed captures are retained. Raw HTML output is still the original documentElement.outerHTML, without applying visual redaction or rich-copy size policy. Its write phase is protected and stale raw success timers cannot overwrite a newer error.
+- Error text is constrained within the established toolbar, with full tooltip/live-region text and existing compact icons when needed. The viewport width cap is preserved through transitions for ordinary windows. Below 320px the historical toolbar behavior is retained so the already-tested tiny Viewports trigger is not squeezed to an unusable hit box; this is not a claim that every toolbar control fits a 200px window. Success toasts no longer consume clicks and are cleared on a new action. No new panel, palette or branding redesign is introduced.
+
+### Asset cancellation and ownership
+
+- A single capture signal now reaches image fetch/response work, SVG external references and collector waits. Per-asset timeouts remain bounded. Abortable FileReader encoding and detached image conversion release handlers/object URLs; cross-origin video conversion only operates on an owned temporary element and captures the source time once. Original page video playback is not played/paused/reloaded by this cleanup. Canvas encoding and other native operations without cancellation APIs may finish internally; abandoned results are ignored rather than committed.
+- Source worker recovery uses **the same H2D_FETCH_ASSETS command** with an optional random requestId/cancel payload. Jobs are scoped to the authenticated sender tab/top frame. Another tab/frame cannot cancel them. Malformed/duplicate IDs are rejected, cancellation-before-registration is remembered briefly, tombstones are bounded to 128/10 seconds, active jobs are removed in finally, and tab closure aborts its jobs. Older payloads remain compatible with their existing five-second worker timeout.
+- HTTP contexts without crypto.randomUUID use crypto.getRandomValues to create an RFC4122-style request ID. IDs do not contain source data. Cancellation messages contain only the ID. No new RPC, Chrome permission, host grant or CSP exception is added.
+- Existing public/sensitive URL checks, omitted recovery credentials, GET-only reads, redirect errors, MIME/10 MiB image limits and service denial remain. **Remote recovery blocked by connect-src self is not unblocked here.** That P2 policy decision requires separate approval; do not confuse valid batching/cancellation with permission to read every remote asset.
+
+### Verification
+
+**242 Node checks + 98 Chromium groups pass**: the existing 195 checks plus 47 safety checks; 14 capture + 25 generator + 15 editable-board + 11 picker/viewport + 10 responsive + 8 full-page + 15 safety browser groups. Suites run sequentially against source and the extracted release, using real controls, storage and native clipboard payloads where applicable. Test instrumentation/read grants, reduced test budgets and held/failed operations are not runtime behavior.
+
+The new browser suite covers legacy redaction without lost work, hidden/CSS-hidden/textarea/select/password and nonvisual-ID exclusion, preserved visible input/option/button/checked state and source DOM, denied automatic writes with unchanged old clipboard, native manual retry, budgets before encoding/writing, safe encoding failures, cancelled downloads/preparation, completed-capture retention, irreversible writing with guarded concurrent commands, long errors/retry at desktop/600/390px, raw HTML unchanged, stale timer protection, disposal/reinjection and real content-script-to-worker cancellation. Unit tests additionally cover UTF-8/surrogates, worker owner isolation, late and pre-cancelled promises, FileReader cleanup, temporary video/image cleanup, fixed video times, malformed/early cancellation and HTTP-context IDs.
+
+A normal anonymous live Dribbble capture-data check was repeated with the normal **10-second Browser snapshot signal**. Browser and phone roots remained **4795px / 10772px**, with zero empty/unresolved image sources, 85 artwork/avatar image elements and unchanged source width/scroll. Third-party advertising/tracking and an inactive rotating video remained unavailable in some runs; no policy bypass was attempted. A live Figma paste remains unverified, and no universal website or minimum-browser-version certification is claimed.
+
+Runtime: **712,844 bytes / 20 files**, including **339,797 bytes of JavaScript**. Relative to 1.7.3, changes are the new safety module; targeted toolbar/worker logic; the manifest version; and forwarding the board's active signal to its unchanged clipboard encoder format. The other **15 retained runtime files**, including viewport/full-page rendering, generator/scanner/review core, assets, options, locale and privacy policy, are byte-identical. JSON/JS syntax, package inventory/CRC/extracted bytes and regression suites are checked before delivery. No commit/push/upload to the repository is performed.
+
+### Still separate work (as of 1.7.4)
+
+At the 1.7.4 cut, HTTP-hosted placeholders and asset-health reporting were deferred; this 1.7.5 pass addresses those two scoped items. Primary internal scrolling-container capture, a remote-recovery policy change, project/draft persistence, permission minimization and live-Figma release acceptance remain separate. Raw capture remains raw; visible private content is not automatically anonymized. Do not claim all audit items are fixed by this patch.
+
+## Historical 1.7.3 full-page completeness repair
 
 Baseline: public **1.7.2**, commit **869174d6456f3b0494578c3fdd52d01b572ad476**. Work is isolated in `figextenison-fullpage-fix`; the previous 1.6/1.7.2 workspaces and release ZIPs remain unchanged. No repository commit/push is performed.
 

@@ -17,7 +17,7 @@ function isInjectable(url) {
 async function injectToolbar(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    files: ["js/privacy.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/h2d_toolbar.js"],
+    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/h2d_toolbar.js"],
     injectImmediately: true
   });
 }
@@ -87,12 +87,18 @@ async function capturePreview(tab) {
   } catch { return ""; }
 }
 
-function toDataUrl(blob) {
+function toDataUrl(blob, signal) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Could not encode local capture"));
-    reader.readAsDataURL(blob);
+    if (signal?.aborted) { reject(signal.reason); return; }
+    const reader = new FileReader(); let settled = false;
+    const cleanup = () => { signal?.removeEventListener("abort", abort); reader.onload = reader.onerror = reader.onabort = null; };
+    const finish = (callback, value) => { if (settled) return; settled = true; cleanup(); callback(value); };
+    const abort = () => { try { if (reader.readyState === 1) reader.abort(); } catch {} finish(reject, signal.reason); };
+    reader.onload = () => finish(resolve, reader.result);
+    reader.onerror = () => finish(reject, new Error("Could not encode local capture"));
+    reader.onabort = () => finish(reject, signal?.reason || new DOMException("Capture cancelled", "AbortError"));
+    signal?.addEventListener("abort", abort, { once: true });
+    try { reader.readAsDataURL(blob); } catch (error) { finish(reject, error); }
   });
 }
 
@@ -147,23 +153,39 @@ async function readImage(url, signal) {
       if (size > limit) { await reader.cancel(); return { url, blob: null, error: "recovery_failed" }; }
       chunks.push(value);
     }
-    return { url, blob: { type: mime, base64Blob: await toDataUrl(new Blob(chunks, { type: mime })) } };
+    return { url, blob: { type: mime, base64Blob: await toDataUrl(new Blob(chunks, { type: mime }), signal) } };
   } catch { return { url, blob: null, error: "recovery_failed" }; }
 }
 
-async function recoverAssets(payload) {
+const assetJobs = new Map(), cancelledAssetJobs = new Map();
+async function recoverAssets(payload, sender) {
+  const owner = Number.isInteger(sender?.tab?.id) ? `${sender.tab.id}:${sender.frameId}` : "legacy";
+  for (const [id, time] of cancelledAssetJobs) if (Date.now() - time > 10000) cancelledAssetJobs.delete(id);
+  if (payload?.cancel != null) {
+    if (typeof payload.cancel !== "string" || !/^[a-f0-9-]{36}$/i.test(payload.cancel) || payload.urls != null) throw new Error("Invalid asset cancellation");
+    const key = `${owner}:${payload.cancel}`, job = assetJobs.get(key);
+    cancelledAssetJobs.set(key, Date.now());
+    while (cancelledAssetJobs.size > 128) cancelledAssetJobs.delete(cancelledAssetJobs.keys().next().value);
+    job?.controller.abort(); return [];
+  }
+  if (payload?.requestId != null && (typeof payload.requestId !== "string" || !/^[a-f0-9-]{36}$/i.test(payload.requestId))) throw new Error("Invalid asset job");
   if (!Array.isArray(payload?.urls) || payload.urls.length > 64 ||
       payload.urls.some(url => typeof url !== "string")) throw new Error("Invalid asset request");
   const results = new Array(payload.urls.length);
-  const signal = AbortSignal.timeout(5000);
+  const controller = new AbortController(), key = payload.requestId ? `${owner}:${payload.requestId}` : null;
+  if (key && cancelledAssetJobs.has(key)) { cancelledAssetJobs.delete(key); return []; }
+  if (key && assetJobs.has(key)) throw new Error("Duplicate asset job");
+  if (key) assetJobs.set(key, { controller, tabId: sender?.tab?.id });
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]);
   let index = 0;
-  await Promise.all(Array.from({ length: Math.min(4, payload.urls.length) }, async () => {
-    while (index < payload.urls.length) {
+  try { await Promise.all(Array.from({ length: Math.min(4, payload.urls.length) }, async () => {
+    while (index < payload.urls.length && !signal.aborted) {
       const current = index++;
       results[current] = await readImage(payload.urls[current], signal);
     }
   }));
   return results;
+  } finally { if (key && assetJobs.get(key)?.controller === controller) assetJobs.delete(key); }
 }
 
 const handlers = Object.freeze({
@@ -175,8 +197,8 @@ const handlers = Object.freeze({
   H2D_CAPTURE_VISIBLE_TAB: sender => capturePreview(sender.tab),
   H2D_CAPTURE_ELEMENT_PREVIEW: (sender, payload) => captureElementPreview(sender.tab, payload),
   H2D_FETCH_ASSETS: (sender, payload) => {
-    if (!sender.tab || sender.frameId !== 0) throw new Error("Invalid asset request sender");
-    return recoverAssets(payload);
+    if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0) throw new Error("Invalid asset request sender");
+    return recoverAssets(payload, sender);
   },
   H2D_TOOLBAR_CLOSED: async sender => {
     if (Number.isInteger(sender.tab?.id)) await chrome.storage.local.remove(Core.openKey(sender.tab.id));
@@ -211,5 +233,7 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   }).catch(ignoreOperationFailure);
 });
 chrome.tabs.onRemoved.addListener(tabId => {
+  for (const job of assetJobs.values()) if (job.tabId === tabId) job.controller.abort();
+  for (const key of cancelledAssetJobs.keys()) if (key.startsWith(`${tabId}:`)) cancelledAssetJobs.delete(key);
   chrome.storage.local.remove([Core.capturesKey(tabId), Core.openKey(tabId)]).catch(ignoreOperationFailure);
 });

@@ -30,6 +30,23 @@ test('Full-page snapshot height contains the page instead of a 100%-height viewp
   assert.deepEqual(plain(root.rect), { x: 0, y: -100, width: 1280, height: 4000 }); assert.equal(root.styles.height, '4000px'); assert.equal(root.styles.maxHeight, 'none'); assert.equal(root.styles.overflowX, 'hidden');
   assert.deepEqual(root.computedStyles, { width: '100%' }); assert.equal(JSON.stringify(root.childNodes), child);
 });
+test('Explicit full-scroll-area normalization rebases descendants and preserves the selected responsive width', () => {
+  const root = {
+    rect: { x: 30, y: 50, width: 400, height: 200 }, scrollRect: { x: 10, y: -150, width: 420, height: 1000 },
+    styles: { height: '200px', maxHeight: '100vh', overflowY: 'auto' }, computedStyles: { height: '200px', maxHeight: '100vh' },
+    pseudoElementNodes: { after: { rect: { x: 30, y: -90, width: 400, height: 10 } } },
+    childNodes: [{ rect: { x: 40, y: -100, width: 300, height: 40 }, scrollRect: { x: 40, y: -120, width: 300, height: 500 }, childNodes: [{ rect: { x: 50, y: -80, width: 100, height: 20 } }] }]
+  };
+  API.expandScrollArea(root, { width: 400, height: 1000 });
+  assert.deepEqual(plain(root.rect), { x: 30, y: 50, width: 400, height: 1000 });
+  assert.equal(root.styles.height, '1000px'); assert.equal(root.styles.maxHeight, 'none'); assert.equal(root.styles.overflowY, 'auto');
+  assert.deepEqual(root.computedStyles, {});
+  assert.equal(root.childNodes[0].rect.y, 100); assert.equal(root.childNodes[0].scrollRect.y, 80);
+  assert.equal(root.childNodes[0].childNodes[0].rect.y, 120);
+  assert.equal(root.pseudoElementNodes.after.rect.y, 110, 'Root pseudo-elements are rebased with other content descendants');
+  assert.equal(root.scrollRect.y, 50, 'The captured root no longer carries its original vertical scroll offset');
+  assert.equal(root.rect.width, 400, 'No horizontal size is inferred from viewport dimensions');
+});
 test('Correctly sized roots never shrink, and non-finite/invalid bounds are ignored', () => {
   const root = { rect: { x: 0, y: 0, width: 393, height: 5000 }, styles: { height: 'auto' } }, before = JSON.stringify(root);
   for (const height of [1000, NaN, Infinity, -1, 0]) API.expandFullPage(root, { height });
@@ -38,6 +55,38 @@ test('Correctly sized roots never shrink, and non-finite/invalid bounds are igno
 test('Already loaded real images win over lazy metadata and are not changed', () => {
   const img = image({ 'data-src': '/later.png' }, { currentSrc: 'https://example.com/current.png', naturalWidth: 800, naturalHeight: 600 });
   assert.equal(API.imageSource(img), 'https://example.com/current.png'); assert.equal(img.getAttribute('data-src'), '/later.png');
+});
+test('Boolean-like lazy flags and fragment values do not become guessed image/document URLs', () => {
+  const placeholderUrl = 'https://example.com/pixel.svg';
+  const flag = image({ src: placeholderUrl, 'data-lazy': 'true' }, { currentSrc: placeholderUrl, naturalWidth: 1, naturalHeight: 1 });
+  assert.equal(API.imageSource(flag), placeholderUrl);
+  const fragment = image({ src: placeholderUrl, 'data-src': '#image' }, { currentSrc: placeholderUrl, naturalWidth: 1, naturalHeight: 1 });
+  assert.equal(API.imageSource(fragment), placeholderUrl);
+  assert.equal(API.imageSource(image({ 'data-srcset': 'true 1x' })), placeholder);
+});
+test('A loaded 1x1 HTTP placeholder yields its explicit lazy URL without mutating the source image', () => {
+  const placeholderUrl = 'https://example.com/pixel.svg', targetUrl = 'https://example.com/art.webp';
+  const img = image({ src: placeholderUrl, 'data-src': targetUrl }, { currentSrc: placeholderUrl, naturalWidth: 1, naturalHeight: 1 });
+  assert.equal(API.imageSource(img), targetUrl); assert.equal(img.currentSrc, placeholderUrl); assert.equal(img.getAttribute('src'), placeholderUrl);
+});
+for (const key of ['data-actualsrc', 'data-lazy', 'data-url', 'data-image-src', 'data-hi-res-src', 'data-echo', 'data-flickity-lazyload', 'data-cfsrc']) test(`${key} is recognized as explicit lazy-image metadata`, () => {
+  assert.equal(API.imageSource(image({ [key]: './asset.webp' })), 'https://example.com/asset.webp');
+});
+for (const key of ['data-lazy-srcset', 'data-original-srcset']) test(`${key} selects a responsive candidate by rendered width`, () => {
+  const img = image({ [key]: '/small.webp 200w, /large.webp 600w' });
+  assert.equal(API.imageSource(img), 'https://example.com/large.webp');
+});
+test('Active picture source recognizes additional lazy srcset metadata and preserves its media query', () => {
+  const img = image(), phoneSourceAttrs = new Map([['data-lazy-srcset', '/phone.webp 1x']]);
+  img.parentElement = { localName: 'picture', querySelectorAll: () => [
+    { media: '(min-width:1000px)', getAttribute: () => '/desktop.webp 1x' },
+    { media: '(max-width:500px)', getAttribute: name => phoneSourceAttrs.get(name) || null }
+  ] };
+  assert.equal(API.imageSource(img), 'https://example.com/phone.webp');
+});
+test('Loaded real HTTP images still win over lazy metadata even if they are small in CSS', () => {
+  const img = image({ src: 'https://example.com/current.webp', 'data-src': '/later.webp' }, { currentSrc: 'https://example.com/current.webp', naturalWidth: 640, naturalHeight: 480 });
+  assert.equal(API.imageSource(img), 'https://example.com/current.webp');
 });
 test('Dribbble-style lazy width/height URL templates become real measured image URLs', () => {
   const img = image({ 'data-src': 'https://cdn.dribbble.com/userupload/1/file/art.png?resize={width}x{height}&vertical=center' });
@@ -106,6 +155,11 @@ test('Recovery cancellation prevents starting later batches', async () => {
 test('Full-page normalization is opt-in for element captures; raw HTML and board capture keep their existing paths', () => {
   const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
   assert.match(toolbar, /\(d\|\|n.captureFullPage\)&&globalThis.PageCaptureViewports\?\.expandFullPage/);
+  assert.match(toolbar, /!d&&n\.captureScrollArea\?globalThis\.PageCaptureViewports\?\.expandScrollArea/);
+  assert.match(toolbar, /\{id:"select_scroll_area"[\s\S]{0,1600}captureScrollArea:!0/);
+  assert.match(toolbar, /\["auto","scroll","overlay"\]\.includes\(getComputedStyle\(x\)\.overflowY\)&&x\.scrollHeight>x\.clientHeight\+1/);
+  assert.match(toolbar, /for\(let x=p;x&&x!==document\.documentElement;x=x\.parentElement\|\|x\.getRootNode\(\)\.host\)if\(sa\(x\)\)\{p=x;break\}/);
+  assert.match(toolbar, /"capture_page","select_element","select_scroll_area"/);
   assert.match(toolbar, /attributes:imageUrl\?\{\.\.\.\$c\(t\),currentSrc:imageUrl\}:\$c\(t\)/);
   assert.match(toolbar, /let html=document.documentElement.outerHTML;await navigator.clipboard.writeText\(html\)/);
   const board = fs.readFileSync(path.join(root, 'js/design-system-board.js'), 'utf8'); assert.doesNotMatch(board, /captureFullPage/);

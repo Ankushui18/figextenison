@@ -46,14 +46,37 @@
   function srcsetUrls(text, base) {
     return parseSrcset(text).map(row => assetUrl(row.url, base) + (row.descriptor ? " " + row.descriptor : "")).join(", ");
   }
+  const LAZY_SRC_ATTRIBUTES = Object.freeze([
+    "data-src", "data-lazy-src", "data-original", "data-original-src", "data-actualsrc",
+    "data-lazy", "data-url", "data-image-src", "data-hi-res-src", "data-echo",
+    "data-flickity-lazyload", "data-cfsrc"
+  ]);
+  const LAZY_SRCSET_ATTRIBUTES = Object.freeze(["data-srcset", "data-lazy-srcset", "data-original-srcset"]);
+  function firstAttribute(element, names) {
+    for (const name of names) {
+      const value = (element?.getAttribute?.(name) || "").trim();
+      if (value && !/^(?:true|false|yes|no|null|undefined|0|1|lazy|loaded|loading)$/i.test(value)) return value;
+    }
+    return "";
+  }
+  function srcsetCandidate(text, width, ratio) {
+    if (!text) return "";
+    const ranked = parseSrcset(text).map(row => {
+      const descriptor = row.descriptor.split(/\s+/)[0];
+      const density = !descriptor || /x$/i.test(descriptor);
+      const parsed = parseFloat(descriptor);
+      return { ...row, size: Number.isFinite(parsed) && parsed > 0 ? parsed : 1, density };
+    }).filter(row => row.url && !/^(?:true|false|yes|no|null|undefined|0|1|lazy|loaded|loading)$/i.test(row.url)).sort((a, b) => a.size - b.size);
+    if (!ranked.length) return "";
+    return (ranked.find(row => row.size >= (row.density ? ratio : width)) || ranked[ranked.length - 1]).url;
+  }
   // Resolve explicit lazy-image metadata without scrolling or editing live DOM.
-  // A real loaded source wins; a placeholder/URL template is replaced only when
-  // the page itself supplies a usable candidate. No guessed image endpoints.
-  function imageInfo(image) {
+  // Tiny/incomplete HTTP images count as placeholders only when the page also
+  // supplies a candidate. Real loaded content wins; no URLs are guessed/logged.
+  function imageInfo(image, reference = image) {
     const attr = name => (image.getAttribute?.(name) || "").trim();
-    const current = image.currentSrc || attr("src");
+    const current = image.currentSrc || attr("src") || (reference !== image ? reference?.currentSrc || "" : "");
     const template = value => /\{(?:width|height)\}|%7b(?:width|height)%7d/i.test(value);
-    const placeholder = !current || template(current) || /^data:image\//i.test(current) && (image.naturalWidth || 0) <= 2 && (image.naturalHeight || 0) <= 2;
     const base = image.ownerDocument?.baseURI || globalThis.location?.href || "";
     const rect = image.getBoundingClientRect?.() || {};
     const view = image.ownerDocument?.defaultView;
@@ -61,31 +84,48 @@
     const width = Math.max(1, Math.min(4096, Math.ceil((rect.width || Number(attr("width")) || view?.innerWidth || 1024) * ratio)));
     const height = rect.height > 2 ? Math.min(4096, Math.ceil(rect.height * ratio)) : "";
     const resolve = value => {
+      if (!value || value.startsWith("#")) return "";
       const replaced = value.replace(/\{width\}|%7bwidth%7d/gi, String(width)).replace(/\{height\}|%7bheight%7d/gi, String(height));
       const result = assetUrl(replaced, base);
       return result && result !== "data:," && !/^javascript:/i.test(result) ? result : "";
     };
-    if (!placeholder) return { url: resolve(current), changed: false };
-    let candidate = "";
+    const lazySource = firstAttribute(image, LAZY_SRC_ATTRIBUTES);
+    const lazySet = firstAttribute(image, LAZY_SRCSET_ATTRIBUTES);
     // Picture sources retain their active media query, rather than blindly using
     // a desktop candidate for a phone-sized copy.
     const picture = image.parentElement?.localName === "picture" ? image.parentElement : null;
-    const source = picture && [...picture.querySelectorAll("source")].find(node => !node.media || view?.matchMedia(node.media).matches);
-    const set = source?.getAttribute("data-srcset") || attr("data-srcset") || attr("data-lazy-srcset");
-    if (set) {
-      const candidates = parseSrcset(set).map(row => ({ ...row, size: parseFloat(row.descriptor) || 1, density: /x\s*$/.test(row.descriptor) }));
-      const ranked = candidates.sort((a, b) => a.size - b.size);
-      candidate = (ranked.find(row => row.size >= (row.density ? ratio : width)) || ranked[ranked.length - 1])?.url || "";
+    const source = picture && [...picture.querySelectorAll("source")].find(node => !node.media || !view?.matchMedia || view.matchMedia(node.media).matches);
+    const sourceLazySource = firstAttribute(source, LAZY_SRC_ATTRIBUTES);
+    const sourceLazySet = firstAttribute(source, LAZY_SRCSET_ATTRIBUTES);
+    const sourceSet = (source?.getAttribute?.("srcset") || "").trim();
+    const imageSet = attr("srcset");
+    const natural = reference && reference !== image && Number(reference.naturalWidth) > 0 ? reference : image;
+    const tiny = (Number(natural?.naturalWidth) || 0) <= 2 && (Number(natural?.naturalHeight) || 0) <= 2;
+    const hasCandidate = !!(lazySource || lazySet || sourceLazySource || sourceLazySet || sourceSet || imageSet);
+    const placeholder = !current || template(current) || /^data:image\//i.test(current) && tiny || tiny && hasCandidate;
+    if (!placeholder) return { url: resolve(current), changed: false };
+    let candidate = "";
+    for (const set of [sourceLazySet, lazySet, sourceSet, imageSet]) {
+      candidate = srcsetCandidate(set, width, ratio);
+      if (candidate) break;
     }
-    candidate ||= attr("data-src") || attr("data-lazy-src") || attr("data-original") || attr("data-original-src") || current;
+    candidate ||= sourceLazySource || lazySource || current;
     const url = candidate ? resolve(candidate) : "";
     return { url: url || resolve(current), changed: !!url && (url !== current || template(current)) };
   }
-  function imageSource(image) { return imageInfo(image).url; }
-  function prepareLazyImages(root) {
+  function imageSource(image, reference = image) { return imageInfo(image, reference).url; }
+  function prepareLazyImages(root, sourceByCopy) {
     let count = 0;
-    for (const image of root.querySelectorAll("img")) {
-      const info = imageInfo(image);
+    const pending = [root], scopes = new Set(), images = new Set();
+    while (pending.length) {
+      const scope = pending.pop();
+      if (!scope || scopes.has(scope)) continue;
+      scopes.add(scope);
+      for (const image of scope.querySelectorAll?.("img") || []) images.add(image);
+      for (const element of scope.querySelectorAll?.("*") || []) if (element.shadowRoot) pending.push(element.shadowRoot);
+    }
+    for (const image of images) {
+      const info = imageInfo(image, sourceByCopy?.get(image) || image);
       if (!info.changed) continue;
       image.removeAttribute("srcset");
       if (image.parentElement?.localName === "picture") for (const source of image.parentElement.querySelectorAll("source")) source.removeAttribute("srcset");
@@ -119,6 +159,26 @@
     if (root.styles.maxHeight) root.styles.maxHeight = "none";
     if (root.computedStyles) { delete root.computedStyles.height; delete root.computedStyles.maxHeight; }
     return root;
+  }
+  function expandScrollArea(root, bounds) {
+    if (!root?.rect) return root;
+    // This mode is explicit and runs on the serialized model, never on the live
+    // page. Rebase descendants from the current internal scroll position so the
+    // full vertical content, including its first section, fits the expanded root.
+    const offsetY = Number.isFinite(root.scrollRect?.y) && Number.isFinite(root.rect.y) ? root.rect.y - root.scrollRect.y : 0;
+    if (offsetY) {
+      const pending = [...(root.childNodes || []), ...Object.values(root.pseudoElementNodes || {}).filter(Boolean)], seen = new Set();
+      while (pending.length) {
+        const node = pending.pop();
+        if (!node || seen.has(node)) continue;
+        seen.add(node);
+        if (node.rect && Number.isFinite(node.rect.y)) node.rect = { ...node.rect, y: node.rect.y + offsetY };
+        if (node.scrollRect && Number.isFinite(node.scrollRect.y)) node.scrollRect = { ...node.scrollRect, y: node.scrollRect.y + offsetY };
+        pending.push(...(node.childNodes || []), ...Object.values(node.pseudoElementNodes || {}).filter(Boolean));
+      }
+      if (root.scrollRect) root.scrollRect = { ...root.scrollRect, y: root.rect.y };
+    }
+    return expandFullPage(root, bounds);
   }
   async function fetchAssetBatches(urls, request, signal) {
     const result = [];
@@ -204,11 +264,11 @@
           } while (walker.nextNode());
         }
         const inert = source.implementation.createHTMLDocument("");
-        const root = inert.importNode(source.documentElement, true), pairs = [], mapping = new Map(), scopes = [{ source, target: null }];
+        const root = inert.importNode(source.documentElement, true), pairs = [], mapping = new Map(), sourceByCopy = new WeakMap(), scopes = [{ source, target: null }];
         function visit(original, copy) {
           active.throwIfAborted();
           if (pairs.length >= LIMITS.nodes) throw new Error("This page is too large for responsive copying. Use Browser only.");
-          pairs.push([original, copy]); mapping.set(original, copy);
+          pairs.push([original, copy]); mapping.set(original, copy); sourceByCopy.set(copy, original);
           const children = [...original.childNodes], copies = [...copy.childNodes];
           for (let index = 0; index < children.length; index++) visit(children[index], copies[index]);
           if (original.nodeType === 1 && original.shadowRoot) {
@@ -321,7 +381,7 @@
           while (target.cssRules.length) target.deleteRule(0);
           for (const rule of replacement.cssRules) target.insertRule(rule.cssText, target.cssRules.length);
         }
-        prepareLazyImages(root);
+        prepareLazyImages(root, sourceByCopy);
         const fonts = isolated.fonts?.ready;
         if (fonts) await wait(Promise.race([fonts, new Promise(resolve => setTimeout(resolve, 1500))]), active);
         await wait(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))), active);
@@ -345,5 +405,5 @@
       }
     };
   }
-  globalThis.PageCaptureViewports = Object.freeze({ createCapturer, dimensions, cssUrls, srcsetUrls, imageSource, decodeImages, expandFullPage, fetchAssetBatches, limits: LIMITS });
+  globalThis.PageCaptureViewports = Object.freeze({ createCapturer, dimensions, cssUrls, srcsetUrls, imageSource, decodeImages, expandFullPage, expandScrollArea, fetchAssetBatches, limits: LIMITS });
 })();

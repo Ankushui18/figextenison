@@ -33,13 +33,13 @@ const html = fs.readFileSync(path.join(__dirname, 'fixtures/viewports.html'), 'u
         Element.prototype.attachShadow = function(options) { const root = original.call(this, options); globalThis.__viewportTestRoots.push({ host: this, root }); return root; };
       } }); return tab.id;
     }, url);
-    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
     await inject(); await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
     const isolated = (operation, args = {}) => worker.evaluate(async ({ tabId, operation, args }) => {
       const [result] = await chrome.scripting.executeScript({ target: { tabId }, args: [operation, args], func: (operation, args) => {
         const host = document.getElementById('__figma_h2d_chrome_extension_toolbar__'), root = globalThis.__viewportTestRoots.find(entry => entry.host === host)?.root;
         const pop = document.getElementById('__pc_viewports__'), box = pop?.shadowRoot?.querySelector('.box');
-        const buttons = [...(root?.querySelectorAll('button') || [])];
+        const buttons = [...(root?.querySelectorAll('button') || [])].filter(node => !node.closest('[data-exit-role]'));
         const button = label => buttons.find(node => (node.getAttribute('aria-label') || node.textContent.trim()) === label);
         if (operation === 'point') {
           const node = args.selector ? root?.querySelector(args.selector) : button(args.label);

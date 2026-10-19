@@ -342,8 +342,8 @@ const fixtureHtml = fs.readFileSync(path.join(__dirname, 'fixtures/design-system
     assert.ok(drag, 'Existing brand segment is draggable');
     await fixture.mouse.move(drag.x, drag.y); await fixture.mouse.down();
     await fixture.mouse.move(drag.x, 855, { steps: 12 }); await fixture.mouse.up();
-    let bottomPoint, stableDock = 0; const dockDeadline = Date.now() + 4000;
-    while (Date.now() < dockDeadline) { bottomPoint = await isolated('point', { toolbar: true, label: 'More tools' }); stableDock = Math.abs((bottomPoint?.y || 0) - 864) < .5 ? stableDock + 1 : 0; if (stableDock >= 3) break; await new Promise(resolve => setTimeout(resolve, 30)); }
+    let bottomPoint, previousDockPoint, stableDock = 0; const dockDeadline = Date.now() + 4000, dockHeight = await fixture.evaluate(() => innerHeight);
+    while (Date.now() < dockDeadline) { bottomPoint = await isolated('point', { toolbar: true, label: 'More tools' }); stableDock = bottomPoint && bottomPoint.y > dockHeight - 70 && bottomPoint.y < dockHeight - 8 && previousDockPoint && Math.abs(bottomPoint.y - previousDockPoint.y) < .25 ? stableDock + 1 : 0; if (stableDock >= 3) break; previousDockPoint = bottomPoint; await new Promise(resolve => setTimeout(resolve, 30)); }
     assert.ok(stableDock >= 3, `Existing toolbar settles at the bottom: ${JSON.stringify(bottomPoint)}`);
     await click('More tools', { toolbar: true });
     state = await waitFor(state => state.menu, 'bottom-docked menu');

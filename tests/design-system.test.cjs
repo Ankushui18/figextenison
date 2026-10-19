@@ -131,15 +131,17 @@ test('Core initialization is idempotent on repeated toolbar injection', () => {
   vm.runInNewContext(source, context);
   assert.equal(context.PageCaptureDesignSystemCore, first);
 });
-test('Toolbar regression baseline retains the board bridge, responsive adapter, full-page framing and lazy-image capture', () => {
+test('Toolbar regression baseline retains board/responsive/full-page/scroll-area behavior, P1 safety and privacy-safe image reporting', () => {
   const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
   const hook = ',globalThis.PageCaptureDesignSystem?.attach(d,globalThis.PageCaptureDesignBoard?.createCopier({capture:Sn,serialize:zr,encode:Ir}))';
   const flag = 'scrollbarManager:n.skipScrollbarHiding?{hide(){},show(){}}:new ft({analyticsTimer:L=>o("sb",L)})';
   assert.equal(toolbar.split(hook).length - 1, 1);
   assert.equal(toolbar.split(flag).length - 1, 1);
+  assert.match(toolbar, /success&&o\(__vpCopySuccessMessage\(d\)\)/);
+  assert.match(toolbar, /function __vpCopySuccessMessage\(records\)/);
   const original = toolbar.replace(hook, '').replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})');
   const hash = crypto.createHash('sha256').update(original).digest('hex');
-  assert.equal(hash, '1ce6fbc3750e9db275b513dc7d5b6bf3d982e6efef408641609c02cafcf70999');
+  assert.equal(hash, '03c68f424609c68345e5c9beacba18343c7ddfa657e299c0e39d2ab0f6410a51');
 });
 test('Scanner/review modules have no network or clipboard APIs; permissions are unchanged', () => {
   const ui = fs.readFileSync(path.join(root, 'js/design-system.js'), 'utf8');

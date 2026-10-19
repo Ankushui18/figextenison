@@ -240,6 +240,6 @@ test('Board module is idempotent and has no network, storage, clipboard reads, r
   assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|chrome\.(?:storage|tabs|runtime)|clipboard\.(?:read|readText)|figma\.variables|createTextStyle|createEffectStyle|innerHTML\s*=|srcdoc\s*=/);
   assert.match(source, /navigator\.clipboard\.write\(/); assert.match(source, /extractCssVariables: false/);
   assert.match(read('js/background.js'), /"js\/design-system-core\.js", "js\/design-system-board\.js", "js\/design-system\.js", "js\/viewports\.js", "js\/h2d_toolbar\.js"/);
-  const manifest = JSON.parse(read('manifest.json')); assert.equal(manifest.version, '1.7.3');
+  const manifest = JSON.parse(read('manifest.json')); assert.equal(manifest.version, '1.7.8');
   assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
 });

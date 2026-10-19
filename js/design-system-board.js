@@ -124,7 +124,8 @@
     return board;
   }
 
-  async function makeClipboardHtml(snapshotJson, encode) {
+  async function makeClipboardHtml(snapshotJson, encode, signal) {
+    signal?.throwIfAborted();
     // Same version-2 snapshot array and figmeta/figh2d HTML markers as the
     // established Capture design path. This is not an SVG or a variable import.
     const snapshot = JSON.parse(snapshotJson);
@@ -132,7 +133,7 @@
       throw new Error("The editable board snapshot is invalid or contains unexpected assets.");
     }
     const metadata = { dataType: "h2d", source: "chrome-extension", capturedAtIso: new Date().toISOString() };
-    const [meta, data] = await Promise.all([encode(JSON.stringify(metadata)), encode(JSON.stringify([{ ...snapshot, type: "snapshot" }]))]);
+    const [meta, data] = await Promise.all([encode(JSON.stringify(metadata), signal), encode(JSON.stringify([{ ...snapshot, type: "snapshot" }]), signal)]);
     // Encoded fields must remain base64, even if a helper unexpectedly changes.
     if (![meta, data].every(value => typeof value === "string" && /^[A-Za-z0-9+/]*={0,2}$/.test(value))) throw new Error("Could not encode the editable board.");
     return `<span data-metadata="<!--(figmeta)${meta}(/figmeta)-->"></span><span data-h2d="<!--(figh2d)${data}(/figh2d)-->"></span>`;
@@ -195,7 +196,7 @@
         result.document.documentTitle = title;
         const serialized = await helpers.serialize(result.document, active);
         active.throwIfAborted();
-        const html = await makeClipboardHtml(serialized, helpers.encode);
+        const html = await makeClipboardHtml(serialized, helpers.encode, active);
         active.throwIfAborted();
         const blob = new Blob([html], { type: "text/html" });
         if (blob.size > MAX_CLIPBOARD_BYTES) throw new Error("This board is too large to copy. Exclude some tokens and retry.");
