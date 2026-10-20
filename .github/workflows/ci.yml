@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (version, layout, links, unit tests)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Version, repository layout, docs links and quoted test counts.
+      - name: Repository checks
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+  browser:
+    name: Browser suites (Chromium)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+
+      # Sequential on purpose: these suites use native clipboard, real focus
+      # and timer behaviour, so running them in parallel makes flakes.
+      # The runner keeps going after a failing suite and reports each failure as
+      # an annotation plus a step summary, so one red suite does not hide the rest.
+      - name: Capture, generator, board, viewports, responsive, full-page, scroll-area, assets, safety
+        run: npm run test:browser
+
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-suites
+          path: artifacts/
+          if-no-files-found: ignore
+
+  release:
+    name: Release ZIP
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [verify, browser]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build page-capture ZIP from extension/
+        run: npm run pack
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" page-capture-*.zip \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "See CHANGELOG.md. Install: unzip, open chrome://extensions, enable Developer mode, Load unpacked, select the folder containing manifest.json."

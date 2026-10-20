@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '..', 'extension');
 const context = vm.createContext({ URL, AbortController, AbortSignal, DOMException, setTimeout, clearTimeout });
 vm.runInContext(fs.readFileSync(path.join(root, 'js/privacy.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(root, 'js/viewports.js'), 'utf8'), context);

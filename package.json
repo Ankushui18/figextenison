@@ -3,11 +3,15 @@
   "version": "1.7.9",
   "private": true,
   "description": "Local-only page capture Chrome extension. No build step and no runtime dependencies.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "check": "node scripts/check-docs.js",
+    "verify": "npm run check && npm test",
+    "pack": "node scripts/pack.js",
+    "test:browser": "node scripts/browser-suites.js"
   }
 }

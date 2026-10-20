@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Image completeness fixture</title><link rel="icon" href="data:,"><style>
 *{box-sizing:border-box}html,body{margin:0;font:16px/24px Arial,sans-serif;color:#222}main{padding:24px;min-height:1100px}.grid{display:grid;grid-template-columns:repeat(3,220px);gap:20px}.card{margin:0;width:220px;height:180px}.card img{display:block;width:180px;height:140px;object-fit:cover}@media(max-width:600px){.grid{grid-template-columns:repeat(2,180px)}.card{width:180px}.card img{width:160px}}
 </style></head><body><main><h1>Lazy image fixture</h1><section class="grid">

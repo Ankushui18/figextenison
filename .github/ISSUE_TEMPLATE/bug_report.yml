@@ -1,0 +1,82 @@
+name: Bug report
+description: A capture, copy or UI action is wrong or fails
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A reproduction is worth more than a description —
+        if the page is public, say which one; if it is not, a small fixture helps.
+
+        **Do not paste captured page content.** It can contain private data.
+
+  - type: input
+    id: version
+    attributes:
+      label: Extension version
+      description: Shown on the card in chrome://extensions
+      placeholder: "1.7.9"
+    validations:
+      required: true
+
+  - type: input
+    id: chrome
+    attributes:
+      label: Browser and version
+      placeholder: "Chrome 130.0.6723.92 on macOS 15.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: action
+    attributes:
+      label: Which action?
+      options:
+        - Capture design (Browser)
+        - Capture design (extra widths / Viewports)
+        - Select element
+        - Capture scroll area
+        - Capture code
+        - Copy / Copy all
+        - Design system / Copy design system
+        - Permissions or options page
+        - Toolbar does not appear
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or paste result
+      description: Drag an image in. Blur anything private.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before reporting
+      options:
+        - label: I reloaded the extension and refreshed the page
+        - label: The page is not a chrome:// or Chrome Web Store URL
+        - label: I read docs/FAQ.md
+          required: true

@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const artifacts = path.resolve(process.env.ARTIFACT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'page-capture-fullpage-artifacts-')));
 fs.mkdirSync(artifacts, { recursive: true });
 const html = fs.readFileSync(path.join(__dirname, 'fixtures/fullpage.html'), 'utf8');

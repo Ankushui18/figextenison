@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const artifacts = path.resolve(process.env.ARTIFACT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'page-capture-safety-artifacts-')));
 fs.mkdirSync(artifacts, { recursive: true });
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>Safety and stability fixture</title><link rel="icon" href="data:,"><style>html{height:100%}body{margin:0;padding:30px;font:16px Arial;min-height:1600px}.invisible{display:none}img{display:block;margin:20px 0}label{display:block;margin:10px 0}</style></head><body><h1>Visual capture</h1><input id="csrf" type="hidden" value="SAFETY_HIDDEN_TOKEN"><input id="css-hidden" class="invisible" value="SAFETY_CSS_SECRET"><textarea class="invisible">SAFETY_TEXTAREA_SECRET</textarea><select class="invisible"><option>SAFETY_OPTION_SECRET</option></select><label>Visible email <input id="visible" value="visible@example.com"></label><label>Password <input id="password" type="password" value="SAFETY_PASSWORD_SECRET"></label><label><input type="checkbox" value="NONVISUAL_CHECKBOX_SECRET" checked> Current state</label><img id="art" src="/art.svg" width="160" height="120"><select><option value="NONVISUAL_OPTION_TOKEN" selected>Visible option</option></select><button value="NONVISUAL_BUTTON_TOKEN">Visible action</button><p>Editable text stays visible.</p></body></html>`;

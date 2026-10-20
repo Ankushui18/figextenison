@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(__dirname, '..', 'extension');
 const source = fs.readFileSync(path.join(root, 'js/design-system-core.js'), 'utf8');
 const context = { URL };
 vm.runInNewContext(source, context);
