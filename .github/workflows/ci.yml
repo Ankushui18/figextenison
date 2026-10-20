@@ -45,8 +45,18 @@ jobs:
 
       # Sequential on purpose: these suites use native clipboard, real focus
       # and timer behaviour, so running them in parallel makes flakes.
+      # The runner keeps going after a failing suite and reports each failure as
+      # an annotation plus a step summary, so one red suite does not hide the rest.
       - name: Capture, generator, board, viewports, responsive, full-page, scroll-area, assets, safety
         run: npm run test:browser
+
+      - name: Upload suite artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-suites
+          path: artifacts/
+          if-no-files-found: ignore
 
   release:
     name: Release ZIP

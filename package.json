@@ -12,6 +12,6 @@
     "check": "node scripts/check-docs.js",
     "verify": "npm run check && npm test",
     "pack": "node scripts/pack.js",
-    "test:browser": "node tests/browser-smoke.cjs && node tests/design-system-browser.cjs && node tests/design-system-board-browser.cjs && node tests/viewports-browser.cjs && node tests/viewports-responsive-browser.cjs && node tests/fullpage-browser.cjs && node tests/scrollarea-browser.cjs && node tests/scrollarea-child-browser.cjs && node tests/image-completeness-browser.cjs && node tests/capture-safety-browser.cjs"
+    "test:browser": "node scripts/browser-suites.js"
   }
 }
