@@ -4,9 +4,21 @@ Version: **1.7.9**
 
 Review/test date: **20 October 2026**
 
-## Current release: 1.7.9 packaged-leftovers cleanup
+## Current release: 1.7.9 packaged-leftovers cleanup and repository layout
 
-This entry only removes files; it changes no capture, clipboard, permission or network behavior.
+This entry removes files and moves the runtime, but changes no capture,
+clipboard, permission or network behavior.
+
+- **Runtime moved into `extension/`** (manifest, options page, `js/`, `font/`,
+  `img/`, `_locales/`, icons). Chrome loads exactly the same file set and the
+  service worker's `importScripts("core.js", "privacy.js")` and the injected
+  seven-file list are unchanged, because both resolve relative to the extension
+  root. `npm run check` now fails if a runtime file appears outside `extension/`.
+  Paths in the historical sections below are written relative to today's
+  `extension/` (e.g. `js/background.js` → `extension/js/background.js`).
+- Documentation, CI, tests and scripts stay at the repository root; nothing under
+  `extension/` was rewritten for the move, which is why the capture and privacy
+  behaviour is provably untouched.
 
 - Five unreferenced files are deleted: `js/vendor.js` (340,906 bytes), `js/vendor.js.LICENSE.txt`, `js/background.js.LICENSE.txt`, `font/MaterialIcons.woff2` and `font/InterVariable-Italic.woff2`. Nothing in `manifest.json`, `options.html`, the service worker (`importScripts("core.js", "privacy.js")`) or the injected file list referenced them; the only reference in the repository was the test that asserts they are gone.
 - The removed webpack bundle was the last place carrying an unused Figma/Sentry client stack (a `chrome.runtime.getURL("img/toolbar-logo.png")` modal, a Sentry breadcrumb middleware and redux/saga helpers). No live code path used it, but shipping it widened the review surface and contradicted the documented cleanup.

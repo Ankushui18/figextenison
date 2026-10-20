@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage question or "is this a bug?"
+    url: https://github.com/Ankushui18/figextenison/blob/main/docs/FAQ.md
+    about: Behaviour that is a browser limitation rather than a bug is documented in the FAQ.
+  - name: Privacy details
+    url: https://github.com/Ankushui18/figextenison/blob/main/PRIVACY.md
+    about: What is stored, what is sent, and exactly which requests the extension makes.
+  - name: Security report
+    url: https://github.com/Ankushui18/figextenison/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue.

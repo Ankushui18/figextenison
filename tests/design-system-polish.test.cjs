@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const context = { URL };
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/design-system-core.js'), 'utf8'), context);
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension/js/design-system-core.js'), 'utf8'), context);
 const Core = context.PageCaptureDesignSystemCore;
 const plain = value => JSON.parse(JSON.stringify(value));
 const model = (category, values) => ({ tokens: values.map((value, index) => ({ id: `${category}-${index + 1}`, category, value, name: `token-${index + 1}`, included: true })) });

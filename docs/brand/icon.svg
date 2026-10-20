@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Page Capture icon: four white capture brackets around a blue element">
+  <rect width="128" height="128" rx="26" fill="#18181b"/>
+  <g fill="#ffffff">
+    <path d="M26 26h27v9H35v18h-9z"/>
+    <path d="M75 26h27v27h-9V35H75z"/>
+    <path d="M26 75h9v18h18v9H26z"/>
+    <path d="M93 75h9v27H75v-9h18z"/>
+  </g>
+  <rect x="52" y="52" width="24" height="24" rx="2" fill="#1494ff"/>
+</svg>

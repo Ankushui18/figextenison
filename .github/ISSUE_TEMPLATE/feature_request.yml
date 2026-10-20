@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest a capability or an improvement
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project deliberately has no account, no server and no upload path.
+        Requests that need one of those will be declined, but say why you need it
+        and there may be a local alternative.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you solving?
+      placeholder: "When I capture a dashboard, the sidebar ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: This can work entirely locally (no upload, no account)
+        - label: This does not need a new Chrome permission
+        - label: This does not need the extension CSP relaxed

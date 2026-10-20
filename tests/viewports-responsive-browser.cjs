@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const artifacts = path.resolve(process.env.ARTIFACT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'page-capture-responsive-artifacts-')));
 fs.mkdirSync(artifacts, { recursive: true });
 const boot = `window.boots=(window.boots||0)+1;window.resizes=0;addEventListener('resize',()=>window.resizes++);document.querySelector('#live').value='unsaved-live';document.querySelector('#check').checked=true;document.querySelector('#select').value='b';document.querySelector('#state').textContent='SPA current state';let dynamic=document.createElement('style');dynamic.nonce='fixture';document.head.append(dynamic);dynamic.sheet.insertRule('#state{color:rgb(7, 8, 9)}');let sheet=new CSSStyleSheet;sheet.replaceSync('.adopted{border:3px solid rgb(40, 50, 60)}');document.adoptedStyleSheets=[sheet];window.builds=0;customElements.define('responsive-card',class extends HTMLElement{constructor(){super();window.builds++;let r=this.attachShadow({mode:'open'}),s=document.createElement('style'),p=document.createElement('p');s.nonce='fixture';s.textContent=':host{display:block}p::after{content:" SHADOW_DESKTOP"}@media(max-width:900px){p::after{content:" SHADOW_TABLET"}}@media(max-width:500px){p::after{content:" SHADOW_PHONE"}}';p.textContent='Open shadow';r.append(s,p)}});let c=document.querySelector('canvas');c.getContext('2d').fillRect(0,0,30,20);`;

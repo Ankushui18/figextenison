@@ -14,7 +14,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { randomUUID } = require('node:crypto');
 
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const tutorialText = /Pin the extension|Using the extension|Capture code or design|Ready to get started|Get started/i;
 
 (async () => {

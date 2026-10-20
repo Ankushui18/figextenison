@@ -8,7 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { randomUUID } = require('node:crypto');
-const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..'));
+const root = path.resolve(process.env.EXTENSION_ROOT || path.join(__dirname, '..', 'extension'));
 const artifacts = path.resolve(process.env.ARTIFACT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'page-capture-board-artifacts-')));
 fs.mkdirSync(artifacts, { recursive: true });
 const fixtureHtml = fs.readFileSync(path.join(__dirname, 'fixtures/design-system.html'), 'utf8');

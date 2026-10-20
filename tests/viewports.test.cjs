@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const toolbar = fs.readFileSync(path.join(__dirname, '..', 'js/h2d_toolbar.js'), 'utf8');
+const toolbar = fs.readFileSync(path.join(__dirname, '..', 'extension', 'js/h2d_toolbar.js'), 'utf8');
 const layoutSource = toolbar.slice(toolbar.indexOf('function __vpPosition('), toolbar.indexOf('function __vpButton('));
 const settingsSource = toolbar.slice(toolbar.indexOf('var __vpKey='), toolbar.indexOf('function __vpIcon('));
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -73,7 +73,7 @@ test('Responsive selection no longer invokes a temporary-window capture RPC or r
   const h = settings(); assert.deepEqual(plain(await h.context.__vpSelected()).map(row => row.id), ['browser']);
   assert.doesNotMatch(toolbar, /H2D_CAPTURE_VIEWPORT|__pcNoViewports|__vpRace/);
   assert.match(toolbar, /PageCaptureViewports\?\.createCapturer/);
-  const worker = fs.readFileSync(path.join(__dirname, '..', 'js/background.js'), 'utf8');
+  const worker = fs.readFileSync(path.join(__dirname, '..', 'extension', 'js/background.js'), 'utf8');
   assert.doesNotMatch(worker, /chrome\.windows\.create|captureViewport|H2D_CAPTURE_VIEWPORT/);
 });
 test('Opening is awaited, resolves live controls instead of the page-flow host and has bounded cleanup', () => {
