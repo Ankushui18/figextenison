@@ -1,0 +1,14 @@
+# Local Playwright install used only by the optional browser suites
+node_modules/
+package-lock.json
+
+# Browser-test screenshots / summaries (SUITE `ARTIFACT_DIR`)
+artifacts/
+test-results/
+
+# Build/packaging leftovers
+*.zip
+*.crx
+*.pem
+
+.DS_Store

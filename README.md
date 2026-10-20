@@ -1,4 +1,4 @@
-# Page Capture — 1.7.6
+# Page Capture — 1.7.9
 
 Local page capture with an optional **Design System Generator** and **Copy design system** action. The established dark toolbar, blue accent, capture controls and permission help are retained. No account, onboarding, runtime framework or build step is required.
 
@@ -9,6 +9,13 @@ Local page capture with an optional **Design System Generator** and **Copy desig
 3. Choose **Load unpacked** and select the folder containing `manifest.json`.
 4. To update an existing unpacked installation without changing its ID, replace its files in the existing folder and click **Reload** on the extension card.
 5. Refresh website tabs that already had the previous toolbar injected.
+
+## Cleanup in 1.7.9: shipped leftovers removed and the test suite green again
+
+- Deleted five files that no runtime file references: the unused `js/vendor.js` webpack bundle, its `.LICENSE.txt` notice, the obsolete `js/background.js.LICENSE.txt`, `font/MaterialIcons.woff2` and `font/InterVariable-Italic.woff2`. The active `font/InterVariable.woff2` used by the options page is kept.
+- Those leftovers were the only failing check in the dependency-free suite (`tests/privacy.test.cjs` asserts they are absent). `node --test tests/*.test.cjs` now passes every check again. The vendor bundle also carried an unused Sentry/redux client and a Figma-hosted toolbar logo URL, so removing it keeps the packaged surface identical to the documented privacy boundary.
+- Runtime inventory is **20 files / 719,848 bytes**, including **10 JavaScript files / 346,106 bytes**. About **840 KiB** of unreferenced bundle and font bytes (859,784 bytes) are no longer packaged.
+- No behavior, permission, host-permission, CSP, locale, storage or RPC change. The scroll-area, viewport, generator and board features are untouched.
 
 ## Fixed in 1.7.8: Capture scroll area accepts any point inside the scroller
 
@@ -209,8 +216,10 @@ See `PRIVACY-AUDIT.md` for implementation boundaries and verification details.
 Dependency-free tests (Node.js 20+):
 
 ```sh
-node --test tests/*.test.cjs
+npm test          # same as: node --test tests/*.test.cjs
 ```
+
+`package.json` only declares that script; the extension itself still has no build step and no runtime dependency. `node_modules/`, Playwright artifacts and packaged ZIPs are ignored by `.gitignore` so the optional browser run does not pollute the working tree.
 
 Optional real-browser checks (run sequentially; they use native clipboard/window focus):
 
@@ -234,4 +243,4 @@ All browser suites accept `EXTENSION_ROOT` for an extracted release folder. The 
 
 **1.7.4 P1 verification (historical):** **242 Node checks + 98 Chromium groups** (14 existing capture, 25 generator, 15 editable-board, 11 viewport, 10 in-page responsive, 8 full-page, 15 capture-safety). Coverage includes actual native rich clipboard payloads, six-category editable layers, review/exclusions/merges, privacy/source-mutation checks, cancellation, clipboard denial/failure/timeout, strict CSP, a full 480-token board, responsive/docked layouts, cleanup and all prior capture flows. The viewport suite covers real opening/toggle/keyboard/outside clicks on long/scrolled pages, top/bottom docking, narrow/short windows, native saved settings and actual 1280/768/393px rich clipboard snapshots without new tabs/windows. The responsive suite additionally checks exact two-screen 1600/393px output, current SPA/input state, source/scroll/focus preservation, scripts/custom-constructor non-execution, mixed-origin/runtime CSSOM/adopted/shadow styles, strict CSP, cancellation/timeout and partial-failure retention. Full-page tests add a 30-image lazy gallery, a 100%-height root, preserved footer/scrolled coordinates, 130-asset recovery, source preservation and decode cancellation. Safety tests additionally verify legacy migration, hidden/nonvisual-value redaction, native denied-copy/manual retry, pre-encoding size protection, safe encoding errors, preparation/download/disposal cancellation, non-cancellable native write phases, narrow retry controls, raw HTML preservation and real source-to-worker cancellation. Fixture flows block/record remote requests; a separate real-site probe verifies Dribbble capture data. No live Figma paste was tested.
 
-The 1.7.5 and 1.7.6 builds were prepared locally and have not been committed or pushed to the online repository.
+The 1.7.5 and 1.7.6 builds were prepared locally before being committed; 1.7.7, 1.7.8 and 1.7.9 are in this repository. The Node suite is runnable without installing anything (`node --test tests/*.test.cjs`); the Chromium suites need Playwright plus a local Chromium build.
