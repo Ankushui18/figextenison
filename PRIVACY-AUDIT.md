@@ -1,10 +1,20 @@
 # Privacy and verification audit
 
-Version: **1.7.6**
+Version: **1.7.9**
 
-Review/test date: **19 October 2026**
+Review/test date: **20 October 2026**
 
-## Current release: 1.7.6 P2 explicit internal-scroll-area capture
+## Current release: 1.7.9 packaged-leftovers cleanup
+
+This entry only removes files; it changes no capture, clipboard, permission or network behavior.
+
+- Five unreferenced files are deleted: `js/vendor.js` (340,906 bytes), `js/vendor.js.LICENSE.txt`, `js/background.js.LICENSE.txt`, `font/MaterialIcons.woff2` and `font/InterVariable-Italic.woff2`. Nothing in `manifest.json`, `options.html`, the service worker (`importScripts("core.js", "privacy.js")`) or the injected file list referenced them; the only reference in the repository was the test that asserts they are gone.
+- The removed webpack bundle was the last place carrying an unused Figma/Sentry client stack (a `chrome.runtime.getURL("img/toolbar-logo.png")` modal, a Sentry breadcrumb middleware and redux/saga helpers). No live code path used it, but shipping it widened the review surface and contradicted the documented cleanup.
+- Verification: `node --test tests/*.test.cjs` passes **259 checks, 0 failures**. The prior run failed exactly one check (`Unused bundles, their font assets and the native archive permission are removed`) because those files were present in the checkout.
+- Runtime inventory after deletion: **20 files / 719,848 bytes**, of which **10 JavaScript files / 346,106 bytes** (manifest, options page, four icons, `font/InterVariable.woff2`, the locale file, two SVG icons and the ten JavaScript modules). Manifest version is **1.7.9**; `tests/design-system-board.test.cjs` tracks that version. A `.gitignore` now keeps `node_modules/`, browser-test artifacts and packaged ZIPs out of the working tree.
+- Permissions (`storage`, `tabs`, `unlimitedStorage`, `scripting`, `clipboardWrite`), host permissions, extension CSP, locale strings, storage schema and the six local RPCs are unchanged. The Chromium suites were not re-run here (no Playwright/Chromium is installed in this environment); their fixtures and code paths are untouched by this deletion.
+
+## Historical release: 1.7.6 P2 explicit internal-scroll-area capture
 
 Baseline: the exact delivered **1.7.5 ZIP**, SHA-256 `45db78c5d4de6566ce7553ed65a09d5f64dedb22d5dfa632b767ad076535104e`. Work is isolated in `figextenison-scrollarea-audit`; the final 1.7.5 ZIP and previous workspaces are unchanged. This P2 adds an explicit capture path for one selected vertical scroll area. It does not silently expand every overflow element.
 
