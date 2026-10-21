@@ -58,7 +58,7 @@ budget, the popover hint says so — capture a section instead of the whole page
 ### I ticked it and got the real page. Why?
 
 Almost always a stale build. Open **Viewports** and read the last line of the
-Wireframe section: it says `Wireframe v1.8.4 · hook live`. An older number, or
+Wireframe section: it says `Wireframe v1.8.5 · hook live`. An older number, or
 `hook missing`, means the folder the browser loaded predates the transform —
 rebuild it with `npm run pack`, load that folder, then reload the extension and
 refresh the page. After a copy the same line reports how many records were

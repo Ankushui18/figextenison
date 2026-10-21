@@ -1,8 +1,28 @@
 # Privacy and verification audit
 
-Version: **1.8.4**
+Version: **1.8.5**
 
 Review/test date: **21 October 2026**
+
+## 1.8.5 — recovery, not silent failure
+
+- **Shape of the change.** Only `extension/js/h2d_toolbar.js` changed (plus two
+  checks and the version stamps). No new permission, storage key, network call or
+  clipboard contract; the static privacy test still fails the build on `fetch`,
+  `XMLHttpRequest`, `WebSocket`, `sendBeacon`, clipboard reads/writes and
+  `chrome.runtime`/`chrome.tabs`/`chrome.scripting` in the wireframe files.
+- **What the recovery flag holds.** A single expando boolean on the toolbar host
+  (`__h2dToolbarLive`). Isolated-world expandos are not shared between worlds, so
+  the flag distinguishes the live instance from a host orphaned by an extension
+  reload without persisting anything, messaging anywhere, or touching the page's
+  own DOM beyond removing our own stale host.
+- **What the context guard reads.** `chrome.runtime.id` — a local property of the
+  extension API already in use. The guard only changes the error text a user sees;
+  it adds no request and no data flow.
+- **Verification:** `npm test` — **313 checks, 0 failures**, including 52
+  wireframe checks; `npm run verify` clean.
+- **Inventory:** **22 files / 773,682 bytes**, of which **12 JavaScript
+  files / 399,940 bytes**. Manifest version is **1.8.5**.
 
 ## 1.8.4 — scrims and section surfaces
 

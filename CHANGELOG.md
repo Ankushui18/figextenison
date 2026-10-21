@@ -4,6 +4,32 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.8.5 — a dead toolbar says why
+
+### Fixed
+
+- **A toolbar left by an earlier extension instance no longer shadows the new
+  one.** Updating the extension (or clicking *Reload* on `chrome://extensions`)
+  leaves the old toolbar element in every open tab. The freshly injected script
+  saw that element, assumed the toolbar was already live, and returned — so the
+  click appeared to do nothing while the stale UI answered with errors from an
+  invalidated extension context. A host is now marked with a per-isolated-world
+  flag; a host without that flag belongs to a dead instance and is replaced.
+- **A dead context reports an action, not a bare stack.** Capture, copy and the
+  viewport run all talk to the service worker. If the extension was reloaded
+  under the page, `chrome.runtime.id` is gone and the old code rejected with
+  `Extension context invalidated` whose only useful frame was
+  `js/h2d_toolbar.js:1`. Those paths now stop first and show
+  *"Reload the extension and refresh this page before capturing."* in the
+  toolbar instead of throwing.
+
+### Changed
+
+- Two new checks pin the recovery contract: the stale host is dropped before the
+  "already mounted" short circuit, and every service-worker call site guards the
+  context. The toolbar hash baseline still hashes to the 1.8.4 value once these
+  deliberate deltas are stripped, so nothing else in the shipped bundle moved.
+
 ## 1.8.4 — Scrims are lids, not slabs
 
 ### Fixed

@@ -140,9 +140,51 @@ test('Toolbar regression baseline retains board/responsive/full-page/scroll-area
   assert.doesNotMatch(toolbar, /PageCaptureWireframe/);
   assert.match(toolbar, /success&&o\(__vpCopySuccessMessage\(d\)\)/);
   assert.match(toolbar, /function __vpCopySuccessMessage\(records\)/);
-  const original = toolbar.replace(hook, '').replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})');
+  // 1.8.5 recovery/copy deltas are stripped too, so this hash still proves that
+  // nothing *else* in the shipped toolbar changed. Each delta has its own test below.
+  const recover = [
+    ['function __h2dLiveHost(e){try{return!0===e?.__h2dToolbarLive}catch{return!1}}', ''],
+    ['function __h2dDropStaleHost(){let e=document.getElementById(bt);e&&!__h2dLiveHost(e)&&e.remove()}', ''],
+    ['__h2dDropStaleHost(),', ''],
+    ['r.id=n,r.__h2dToolbarLive=!0;', 'r.id=n;'],
+    ['if(!chrome.runtime?.id)return void o("Reload the extension and refresh this page before capturing.");', '']
+  ];
+  const guardedSend = 'async function X(e,t){if(!chrome.runtime?.id)throw new Error("Reload the extension and refresh this page before capturing.");try{var n=await chrome.runtime.sendMessage(void 0===t?{cmd:e}:{cmd:e,payload:t})}catch(o){throw chrome.runtime?.id?o:new Error("Reload the extension and refresh this page before capturing.")}if(!n?.success)';
+  const plainSend = 'async function X(e,t){let n=await chrome.runtime.sendMessage(void 0===t?{cmd:e}:{cmd:e,payload:t});if(!n?.success)';
+  assert.equal(toolbar.split(guardedSend).length - 1, 1);
+  const original = recover
+    .reduce((text, [from, to]) => text.replace(from, to), toolbar)
+    .replace(hook, '')
+    .replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})')
+    .replace(guardedSend, plainSend);
   const hash = crypto.createHash('sha256').update(original).digest('hex');
   assert.equal(hash, '03c68f424609c68345e5c9beacba18343c7ddfa657e299c0e39d2ab0f6410a51');
+});
+test('A toolbar left by a previous extension instance is replaced instead of shadowing the new one', () => {
+  const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
+  // The live-instance marker is a per-isolated-world expando: a reload of the extension
+  // creates a new world, so the stale host has no marker and is dropped before mounting.
+  assert.equal(toolbar.split('r.__h2dToolbarLive=!0').length - 1, 1);
+  assert.equal(toolbar.split('__h2dDropStaleHost(),').length - 1, 1);
+  assert.match(toolbar, /function __h2dLiveHost\(e\)\{try\{return!0===e\?\.__h2dToolbarLive\}catch\{return!1\}\}/);
+  // The drop runs before the "already mounted" short circuit, otherwise a dead host wins.
+  const drop = toolbar.indexOf('__h2dDropStaleHost(),');
+  const existing = toolbar.indexOf('document.getElementById(bt)?performance.now()>5e3');
+  assert.ok(drop > 0 && existing > drop);
+});
+test('A dead extension context asks for a reload instead of rejecting with a bare stack', () => {
+  const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
+  const reloadText = 'Reload the extension and refresh this page before capturing.';
+  // Every path that talks to the service worker, and every action, checks the context first.
+  // Three new sites: the guard in X, the rethrow in X, and the per-action guard. The fourth
+  // is the pre-existing "PageCaptureSafety is absent" guard inside Sn.
+  assert.equal(toolbar.split(reloadText).length - 1, 4);
+  assert.match(toolbar, /async function X\(e,t\)\{if\(!chrome\.runtime\?\.id\)throw new Error\("[^"]+"\)/);
+  assert.match(toolbar, /catch\(o\)\{throw chrome\.runtime\?\.id\?o:new Error\("[^"]+"\)\}/);
+  assert.match(toolbar, /if\(!chrome\.runtime\?\.id\)return void o\("Reload the extension and refresh this page before capturing\."\)/);
+  const guard = toolbar.indexOf('if(!chrome.runtime?.id)return void o(');
+  const busy = toolbar.indexOf('A clipboard write is already in progress');
+  assert.ok(guard > 0 && busy > guard);
 });
 test('Scanner/review modules have no network or clipboard APIs; permissions are unchanged', () => {
   const ui = fs.readFileSync(path.join(root, 'js/design-system.js'), 'utf8');
