@@ -9,8 +9,8 @@ No account, no server, no telemetry, no uploads.</p>
 <p align="center">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/version-1.8.3-0d99ff" alt="version 1.8.3">
-  <img src="https://img.shields.io/badge/tests-307%20passing-brightgreen" alt="307 checks passing">
+  <img src="https://img.shields.io/badge/version-1.8.4-0d99ff" alt="version 1.8.4">
+  <img src="https://img.shields.io/badge/tests-311%20passing-brightgreen" alt="311 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -48,7 +48,7 @@ No account, no server, no telemetry, no uploads.</p>
 | **See what's missing** (honest list) | [Known limits](#known-limits) |
 | **Fix a problem** | [docs/FAQ.md](docs/FAQ.md) |
 
-> **Status: 1.8.3, source-distributed.** Not on the Chrome Web Store yet, so you
+> **Status: 1.8.4, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
 ---
@@ -235,6 +235,9 @@ How it works:
   scrollers stay clipped, and fixed bars stay where the capture put them.
 - **Interaction is the point.** Buttons, inputs and cards keep a 1px hairline so the
   wireframe reads as something you can click, not grey soup.
+- **Scrims are not content.** A hover scrim or a gradient veil that covers a photo
+  (and nothing else) is dropped instead of becoming a grey slab; a badge or a
+  colour swatch of the same shape stays.
 - **No assets.** Images, `background-image`, gradients, video, canvas, SVG artwork
   and cross-origin frames become vector placeholders labelled from `alt` or
   `aria-label`. No request is made and no image data is embedded.
@@ -248,7 +251,7 @@ How it works:
   arriving silently short.
 - **Repeatable.** Copying the same capture twice produces byte-identical layers;
   the capture you were given is never edited.
-- **Honest about itself.** The popover names the build (`Wireframe v1.8.3 · hook
+- **Honest about itself.** The popover names the build (`Wireframe v1.8.4 · hook
   live`) and, after a copy, how many records it rebuilt. A copy that silently
   produced the page is flagged in red instead of reported as success.
 - **Reversible.** The stored capture is untouched, so unchecking the option and
@@ -326,7 +329,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 307 dependency-free checks, no install, ~1s
+npm test          # 311 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -348,7 +351,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **307 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **311 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.

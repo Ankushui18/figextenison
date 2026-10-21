@@ -1,8 +1,27 @@
 # Privacy and verification audit
 
-Version: **1.8.3**
+Version: **1.8.4**
 
 Review/test date: **21 October 2026**
+
+## 1.8.4 — scrims and section surfaces
+
+- **Shape of the change.** Only `extension/js/wireframe-core.js` changed, plus the
+  developer preview script. No permission, storage key, network call or clipboard
+  contract change; the static privacy test still fails the build on `fetch`,
+  `XMLHttpRequest`, `WebSocket`, `sendBeacon`, clipboard reads/writes and
+  `chrome.runtime`/`chrome.tabs`/`chrome.scripting` in the wireframe files.
+- **What the lid rule drops.** A content-free, edge-free box whose own fill or
+  gradient covers at least 35% of a painted surface underneath it (a sibling, or
+  the box it sits in) is removed. That is a hover scrim or a media veil, not
+  content; it carries no text and no page data beyond a colour hint.
+- **Bounded work.** Candidate surfaces are indexed once per parent and capped at
+  64, so a hostile page cannot make the transform quadratic: 6,000 translucent
+  siblings went from ~150 s to ~213 ms. A regression test holds it under 5 s.
+- **Verification:** `npm test` — **311 checks, 0 failures**, including 52
+  wireframe checks; `npm run verify` clean.
+- **Inventory:** **22 files / 773,147 bytes**, of which **12 JavaScript
+  files / 399,405 bytes**. Manifest version is **1.8.4**.
 
 ## 1.8.3 — the build says what it is
 
@@ -23,7 +42,7 @@ Review/test date: **21 October 2026**
 - **Verification:** `npm test` — **307 checks, 0 failures**, including 48
   wireframe checks; `npm run verify` clean.
 - **Inventory:** **22 files / 768,577 bytes**, of which **12 JavaScript
-  files / 394,835 bytes**. Manifest version is **1.8.3**.
+  files / 394,835 bytes**. Manifest version was **1.8.3**.
 
 ## 1.8.2 — wireframe fidelity
 

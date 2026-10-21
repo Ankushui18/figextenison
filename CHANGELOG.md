@@ -4,6 +4,30 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.8.4 — Scrims are lids, not slabs
+
+### Fixed
+
+- **Dark hover scrims no longer become grey slabs.** Dribbble-style cards paint a
+  `rgba(13,13,13,0.8)` scrim over the shot on hover, and gradients over hero media.
+  A content-free, edge-free box that covers a large part of a painted surface
+  underneath it is now dropped at every level. A badge chip of the same shape
+  (a fraction of the area) keeps its place, so `PRO` labels survive.
+- **An image-backed section keeps its own surface.** A dark hero card that holds an
+  image and real content used to be flattened to the generic placeholder grey; it
+  keeps its own tone now (dark stays dark, white stays white) and keeps its
+  children, including the media placeholder inside it.
+- **The lid scan is linear.** The first cut of the scrim rule compared every child
+  with every sibling: a page with 6,000 translucent cards took **150 s** and froze
+  the tab. Candidates are indexed once per parent and capped, so the same page
+  takes **213 ms** (a regression test holds it under 5 s).
+
+### Changed
+
+- `scripts/wireframe-preview.js` now mirrors the page the feature is tested
+  against: nav, promo pill, hero with dark media card, tab row, search field, chip
+  row, 12 shot cards with scrims/PRO badges/captions, category tiles and footer.
+
 ## 1.8.3 — The popover says which build it is
 
 ### Added
