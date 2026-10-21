@@ -12,7 +12,7 @@
   // Shown in the popover so it is obvious which build is actually loaded: a stale
   // release ZIP that still exposes the checkbox but not the transform is the one
   // failure mode the user cannot otherwise see.
-  const BUILD = Object.freeze({ version: "1.8.3" });
+  const BUILD = Object.freeze({ version: "1.8.4" });
 
   const LIMITS = Object.freeze({
     nodes: 20000, depth: 60, lines: 40, nameLength: 48, textLength: 2000,
@@ -569,26 +569,101 @@
     // tint over a photo. Re-toned it becomes a grey slab; kept as-is it washes out
     // whatever it covers. If it sits inside another element that already paints,
     // drop it - the shape survives, the veil does not.
-    function isRedundantVeil(node, siblings) {
+    // Is this box nothing but a lid on something else? A hover scrim
+    // (rgba(13,13,13,.8)), a tint (rgba(0,0,0,.05)) or a gradient overlay has no
+    // content and no edge, and it sits on top of something that already paints.
+    // In greyscale it becomes a grey slab across the card, so it is dropped -
+    // while a small badge chip (the same shape, a fraction of the area) is kept.
+    const SCRIM_AREA_RATIO = 0.35;
+
+    const paintsImage = other => MEDIA_TAGS.has(String(other.tag || "").toUpperCase()) ||
+      /url\(/i.test(String(other.styles?.backgroundImage || "")) ||
+      /url\(/i.test(String(other.styles?.maskImage || "")) ||
+      /gradient\(/i.test(String(other.styles?.backgroundImage || ""));
+
+    // A lid paints something flat over what is behind it: a translucent fill or
+    // any gradient. It never carries content of its own.
+    const isLid = node => {
       const styles = node.styles || {};
       if (Array.isArray(node.childNodes) && node.childNodes.length > 0) return false;
       if (borderWidth(styles) > 0 && styles.borderTopStyle !== "none") return false;
       const paint = parseColor(styles.backgroundColor);
-      if (!paint || paint.a >= 0.12) return false;
+      const gradient = /gradient\(/i.test(String(styles.backgroundImage || ""));
+      return Boolean(gradient) || Boolean(paint && paint.a >= 0.02);
+    };
+
+    // The candidates a lid could be covering, computed once per parent. Without
+    // this the scan is quadratic, and a page with thousands of translucent cards
+    // freezes the tab: 6,000 siblings took 150s before this index.
+    const PAINTER_LIMIT = 64;
+
+    function paintingSiblings(siblings) {
+      const painters = [];
+      for (const other of siblings) {
+        if (!other || other.nodeType !== 1) continue;
+        const rect = other.rect || {};
+        const area = number(rect.width) * number(rect.height);
+        if (area < 400) continue;
+        const paint = parseColor(other.styles?.backgroundColor);
+        if (!paintsImage(other) && !(paint && paint.a > 0.12)) continue;
+        painters.push(other);
+      }
+      if (painters.length <= PAINTER_LIMIT) return painters;
+      // Pathological parent: keep the biggest surfaces, which is what a lid can
+      // actually cover, and stay bounded.
+      return painters
+        .map(other => ({ other, area: number(other.rect?.width) * number(other.rect?.height) }))
+        .sort((left, right) => right.area - left.area)
+        .slice(0, PAINTER_LIMIT)
+        .map(entry => entry.other);
+    }
+
+    function isRedundantVeil(node, painters, parent) {
+      const styles = node.styles || {};
+      if (!isLid(node)) return false;
+      const paint = parseColor(styles.backgroundColor);
+      if (!paint && !/gradient\(/i.test(String(styles.backgroundImage || ""))) return false;
       const rect = node.rect || {};
       const x = number(rect.x), y = number(rect.y);
       const w = number(rect.width), h = number(rect.height);
       if (!(w > 0 && h > 0)) return false;
-      return siblings.some(other => {
-        if (other === node || other.nodeType !== 1) return false;
-        const otherPaint = parseColor(other.styles?.backgroundColor);
-        const otherImage = /url\(/i.test(String(other.styles?.backgroundImage || ""));
-        const large = number(other.rect?.width) * number(other.rect?.height) >= 400;
-        if (!(otherPaint && otherPaint.a > 0.12) && !(otherImage && large)) return false;
-        const ox = number(other.rect?.x), oy = number(other.rect?.y);
-        return x >= ox - 1 && y >= oy - 1
-          && x + w <= ox + number(other.rect?.width) + 1
-          && y + h <= oy + number(other.rect?.height) + 1;
+      const covers = (otherRect, otherStyles, otherNode) => {
+        const otherWidth = number(otherRect.width), otherHeight = number(otherRect.height);
+        if (!(otherWidth > 0 && otherHeight > 0)) return false;
+        const large = otherWidth * otherHeight >= 400;
+        const otherPaint = parseColor(otherStyles?.backgroundColor);
+        const image = otherNode ? paintsImage(otherNode) : false;
+        if (!(image && large) && !(otherPaint && otherPaint.a > 0.12 && large)) return false;
+        const ox = number(otherRect.x), oy = number(otherRect.y);
+        if (!(x >= ox - 1 && y >= oy - 1 && x + w <= ox + otherWidth + 1 && y + h <= oy + otherHeight + 1)) return false;
+        // Covering a large part of what is underneath is what makes a lid a scrim.
+        // A badge or a colour swatch of the same shape is small and keeps its place,
+        // whether it sits on a photo or on a plain surface.
+        return (w * h) / (otherWidth * otherHeight) >= SCRIM_AREA_RATIO;
+      };
+
+      // An overlay on its own container (a gradient over a dark hero) is just as
+      // much a lid as one over a sibling thumbnail.
+      if (parent && covers(parent.rect || {}, parent.styles || {}, null)) return true;
+
+      return painters.some(other => {
+        if (other === node) return false;
+        return covers(other.rect || {}, other.styles || {}, other);
+      });
+    }
+
+    // The same test for children that are kept inside an image-backed box, where
+    // the painted thing is the box itself rather than a sibling.
+    function dropScrims(children, hostRect) {
+      const siblings = Array.isArray(children) ? children : [];
+      return siblings.filter(child => {
+        if (child?.nodeType !== 1) return true;
+        if (!isLid(child)) return true;
+        const area = number(hostRect?.width) * number(hostRect?.height);
+        const own = number(child.rect?.width) * number(child.rect?.height);
+        if (!(area > 0) || own / area < SCRIM_AREA_RATIO) return true;
+        stats.dropped++;
+        return false;
       });
     }
 
@@ -596,6 +671,7 @@
       const backdrop = styles.backgroundColor || inherited || PAPER;
       const children = [];
       const siblings = Array.isArray(node.childNodes) ? node.childNodes : [];
+      let painters = null;
       for (const child of siblings) {
         // The budget counts layers that actually ship: visited-but-dropped nodes
         // (hidden, flattened, veils) must not eat into it.
@@ -612,7 +688,9 @@
             stats.emitted++;
           }
         } else if (child.nodeType === 1) {
-          if (isRedundantVeil(child, siblings)) { stats.dropped++; continue; }
+          // The parent's own box counts as the surface this child may be lidding.
+          painters ??= paintingSiblings(siblings);
+          if (isRedundantVeil(child, painters, { styles, rect: node.rect })) { stats.dropped++; continue; }
           const transformed = walkElement(child, { level, backdrop, depth: depth + 1 });
           if (!transformed) continue;
           // A zero-area wrapper (display:contents, a collapsed flex item) is not a
@@ -680,13 +758,20 @@
       if (isMediaTag || (paintedImage && rect.width * rect.height >= 400)) {
         stats.placeholders++;
         const placeholder = placeholderStyles(tag, node.styles || {}, rect, level);
+        // A large image-backed box with real children inside it is a section (a
+        // hero card, a feature panel), not a thumbnail. Its own surface tone is
+        // the design decision, so keep it instead of flattening a dark hero to
+        // the generic placeholder grey.
+        const ownSurface = fillTone(parseColor(node.styles?.backgroundColor), level, context.backdrop);
+        const sectionLike = !isMediaTag && ownSurface && Array.isArray(node.childNodes) && node.childNodes.length > 0;
+        if (sectionLike) placeholder.styles.backgroundColor = ownSurface;
         const large = rect.width >= 96 && rect.height >= 64;
         const labelled = level !== "low" && large && !placeholder.icon && !placeholder.avatar;
         if (!isMediaTag) {
           // An image-backed box may still hold real content (badges, captions).
           // Keep it, and skip the label so the two cannot collide.
           const kept = contentHidden ? [] : transformChildren(node, placeholder.styles, context.depth, context.backdrop);
-          if (kept.length) return element(node, placeholder.styles, kept);
+          if (kept.length) return element(node, placeholder.styles, dropScrims(kept, rect));
         }
         const children = labelled ? [labelNode({ ...attributes, __tag: tag }, rect, node.id)] : [];
         return element(node, placeholder.styles, children);

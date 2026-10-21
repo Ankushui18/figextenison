@@ -773,6 +773,102 @@ test('With the option off the very same call copies the untouched capture', asyn
   assert.match(JSON.stringify(decoded), /Brand Serif/);
 });
 
+/* ------------------------------------------------ scrims and media sections - */
+
+test('A hover scrim is a lid, not a layer: dark slabs never reach the wireframe', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  const card = (rect, extra = {}) => ({
+    nodeType: 1, tag: 'DIV', attributes: {}, styles: {}, rect, childNodes: [], ...extra
+  });
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'shot', tag: 'LI', attributes: {}, rect: { x: 0, y: 0, width: 292, height: 240 }, styles: {}, childNodes: [
+      card({ x: 0, y: 0, width: 292, height: 219 }, { id: 'thumb', styles: { backgroundImage: 'url(https://cdn.example/1.png)' } }),
+      // Dribbble's hover scrim: opaque enough to be a real grey slab, no content.
+      card({ x: 0, y: 0, width: 160, height: 219 }, { id: 'scrim', styles: { backgroundColor: 'rgba(13, 13, 13, 0.8)' } }),
+      // The PRO badge is the same shape but a fraction of the area: it stays.
+      card({ x: 8, y: 8, width: 46, height: 22 }, { id: 'pro', styles: { backgroundColor: 'rgba(0, 0, 0, 0.5)' } })
+    ]
+  }];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(JSON.parse(JSON.stringify(doc)), { level });
+    const ids = [];
+    const stack = [result.root];
+    while (stack.length) { const node = stack.pop(); ids.push(node.id); stack.push(...(node.childNodes || [])); }
+    assert.equal(ids.includes('scrim'), false, `${level}: a dark hover scrim must be dropped`);
+    assert.equal(ids.includes('thumb'), true, `${level}: the thumbnail stays`);
+    assert.equal(ids.includes('pro'), true, `${level}: a small badge keeps its place`);
+    // No large layer may be as dark as the scrim was. A small badge may be dark:
+    // that is ink on a chip, not a slab across the card.
+    const slabs = [];
+    const scan = node => {
+      const hex = /^#([0-9a-f]{6})$/i.exec(node.styles?.backgroundColor || '');
+      if (hex && parseInt(hex[1].slice(0, 2), 16) / 255 < 0.4 && node.rect.width * node.rect.height > 3000) {
+        slabs.push(`${node.id}:${node.styles.backgroundColor}`);
+      }
+      (node.childNodes || []).forEach(scan);
+    };
+    scan(result.root);
+    assert.deepEqual(slabs, [], `${level}: no slab-dark fills`);
+  }
+});
+
+test('A gradient overlay on its own container is dropped too', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'hero', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 548, height: 400 },
+    styles: { backgroundColor: 'rgb(10, 10, 10)' }, childNodes: [
+      { nodeType: 1, id: 'hero-orb', tag: 'IMG', attributes: { alt: 'Orb' }, rect: { x: 200, y: 120, width: 150, height: 150 }, styles: {}, childNodes: [] },
+      { nodeType: 1, id: 'hero-veil', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 548, height: 400 },
+        styles: { backgroundImage: 'linear-gradient(0deg, rgba(0,0,0,0.6), rgba(0,0,0,0))' }, childNodes: [] }
+    ]
+  }];
+  const { document: result } = Core.transformDocument(doc, { level: 'medium' });
+  const hero = result.root.childNodes[0];
+  assert.equal(hero.styles.backgroundColor, '#7a7a7a', 'the dark hero keeps its own surface');
+  assert.deepEqual(Array.from(hero.childNodes, node => node.id), ['hero-orb'], 'only the orb survives');
+});
+
+test('An image-backed section keeps its own surface instead of a placeholder grey', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  const build = background => ({
+    nodeType: 1, id: 'panel', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 548, height: 400 },
+    styles: { backgroundColor: background, backgroundImage: 'url(https://cdn.example/hero.png)' }, childNodes: [
+      { nodeType: 3, id: 'panel-text', text: 'Listeniko', rect: { x: 40, y: 40, width: 200, height: 24 } }
+    ]
+  });
+  const tones = [];
+  for (const [background, level] of [['rgb(10, 10, 10)', 'high'], ['rgb(255, 255, 255)', 'medium']]) {
+    doc.root.childNodes = [build(background)];
+    const panel = Core.transformDocument(JSON.parse(JSON.stringify(doc)), { level }).document.root.childNodes[0];
+    tones.push(Core.luminance(Core.parseColor(panel.styles.backgroundColor)));
+    assert.ok(panel.childNodes.some(node => node.nodeType === 3 && node.text === 'Listeniko'), 'its content is kept');
+  }
+  assert.ok(tones[0] < 0.35, `a dark panel stays dark: ${tones[0]}`);
+  assert.ok(tones[1] > 0.85, `a white panel stays light: ${tones[1]}`);
+});
+
+test('Thousands of translucent cards stay fast (the lid scan is bounded)', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [];
+  for (let index = 0; index < 3000; index++) {
+    doc.root.childNodes.push({
+      nodeType: 1, id: `card-${index}`, tag: 'DIV', attributes: {},
+      styles: { backgroundColor: 'rgba(0, 0, 0, 0.05)' },
+      rect: { x: (index % 4) * 300, y: Math.floor(index / 4) * 40, width: 292, height: 36 }, childNodes: []
+    });
+  }
+  const started = Date.now();
+  const result = Core.transformDocument(doc, { level: 'medium' });
+  const elapsed = Date.now() - started;
+  assert.ok(result.document.root.childNodes.length > 0);
+  // Before the painter index this was quadratic: 6,000 siblings took ~150s.
+  assert.ok(elapsed < 5000, `took ${elapsed}ms`);
+});
+
 /* --------------------------------------------- hidden, hidden text, bounds - */
 
 test('Content the page hides is not pasted as visible boxes', () => {
