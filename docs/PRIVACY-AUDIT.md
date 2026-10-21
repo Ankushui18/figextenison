@@ -1,8 +1,29 @@
 # Privacy and verification audit
 
-Version: **1.8.2**
+Version: **1.8.3**
 
 Review/test date: **21 October 2026**
+
+## 1.8.3 — the build says what it is
+
+- **Shape of the change.** Only `extension/js/wireframe-core.js` and
+  `extension/js/wireframe.js` changed; the toolbar, the capture pipeline and the
+  clipboard contract are untouched. No new permission, no new storage key, no
+  network code (the existing static test still fails the build on `fetch`,
+  `XMLHttpRequest`, `WebSocket`, `sendBeacon`, clipboard reads/writes and
+  `chrome.runtime`/`chrome.tabs`/`chrome.scripting` in either file).
+- **A build stamp, not a new channel.** `BUILD.version` is a literal in the
+  transform, rendered in the popover as `Wireframe v1.8.3 · hook live`; a test
+  fails if it differs from `manifest.json`. It reports state the page already
+  knows, so it reveals no page data.
+- **Miss detection.** If the option is on and a copy rebuilds **zero** records,
+  the hint says the copy was the real page rather than a wireframe and a
+  `console.warn` records the build version locally. The payload is unchanged —
+  the existing safe fallback (copy the capture untouched) still applies.
+- **Verification:** `npm test` — **307 checks, 0 failures**, including 48
+  wireframe checks; `npm run verify` clean.
+- **Inventory:** **22 files / 768,577 bytes**, of which **12 JavaScript
+  files / 394,835 bytes**. Manifest version is **1.8.3**.
 
 ## 1.8.2 — wireframe fidelity
 

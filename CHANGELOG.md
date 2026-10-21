@@ -4,6 +4,24 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.8.3 — The popover says which build it is
+
+### Added
+
+- **A build stamp in the popover.** The Wireframe section now ends with
+  `Wireframe v1.8.3 · hook live` (or `hook missing`). A release ZIP whose files
+  predate the transform can no longer look identical to a current one: it shows an
+  older version, or no line at all.
+- **A miss is reported, never dressed up as success.** If the option is ticked but
+  the copy rebuilds nothing, the hint turns red and says *"The last copy was the
+  real page, not a wireframe (0 of N records rebuilt)"*, with a console warning.
+  A normal copy now also says how much it rebuilt: *"Last copy rebuilt 2 of 2"*.
+
+### Changed
+
+- `wireframe-core.js` exports `BUILD`, and a test fails if it drifts from
+  `manifest.json` — the stamp cannot lie.
+
 ## 1.8.2 — Wireframe fidelity
 
 ### Fixed

@@ -21,6 +21,10 @@
   let lastCount = 0;
   let lastFailed = 0;
   let lastTruncated = false;
+  // What the last copy actually did, so the popover can report it. A copy that
+  // rebuilt nothing is the one case that must never look like success.
+  let lastApplied = null;
+  let notApplied = false;
   // The copy hook lives in capture-safety.js. If it is not there (a partial or
   // older build) the option must say so instead of silently copying the real page.
   let available = false;
@@ -48,6 +52,8 @@
 .wf .seg button[aria-pressed=true]{background:#0d99ff;color:#fff}
 .wf .seg button:disabled{opacity:.4;cursor:default}
 .wf .hint{margin-top:5px;font-size:11px;line-height:14px;color:rgba(255,255,255,.62);font-weight:400}
+.wf[data-state=miss] .hint{color:#ffb4a8}
+.wf[data-state=miss] .chip{color:#ffb4a8;border-color:rgba(255,180,168,.5);background:rgba(255,180,168,.12)}
 `;
 
   /* ------------------------------------------------------------- settings */
@@ -76,13 +82,27 @@
 
   /* -------------------------------------------------------------- popover */
 
+  // The build stamp makes a stale ZIP visible: if this line is missing from the
+  // popover, the files the browser loaded are older than the source.
+  function buildLine() {
+    return `Wireframe v${Core.BUILD.version} · ${available ? "hook live" : "hook missing"}`;
+  }
+
   function hintText() {
-    if (!available) return "Unavailable in this build: the capture pipeline was not found.";
-    if (!settings.on) return "Off: Capture design copies the page as it looks.";
+    if (!available) {
+      return `Unavailable: the capture pipeline was not found. Reload the extension and refresh the page. ${buildLine()}`;
+    }
+    if (!settings.on) return `Off: Capture design copies the page as it looks. ${buildLine()}`;
+    // A copy that produced the real page is reported loudly, never as success.
+    if (notApplied) {
+      return `The last copy was the real page, not a wireframe (0 of ${lastApplied?.snapshots ?? 0} records rebuilt). Reload the extension, refresh the page and copy again. ${buildLine()}`;
+    }
     const level = Core.LEVELS.find(entry => entry.id === settings.level) || Core.LEVELS[1];
     const base = `${level.title}: text ${level.id === "low" ? "becomes bars" : "is kept in a neutral face"}. Applies to Capture design at every checked width.`;
     // A truncated rebuild is reported rather than silently pasted short.
-    return lastTruncated ? `${base} The last copy stopped at the ${Core.LIMITS.nodes.toLocaleString()} layer limit.` : base;
+    const truncated = lastTruncated ? ` The last copy stopped at the ${Core.LIMITS.nodes.toLocaleString()} layer limit.` : "";
+    const done = lastApplied ? ` Last copy rebuilt ${lastApplied.transformed} of ${lastApplied.snapshots}.` : "";
+    return `${base}${truncated}${done} ${buildLine()}`;
   }
 
   function sync(panel) {
@@ -95,7 +115,7 @@
       button.setAttribute("aria-pressed", String(button.dataset.level === settings.level));
       button.disabled = !available || !settings.on;
     });
-    panel.section.setAttribute("data-state", settings.on ? "on" : "off");
+    panel.section.setAttribute("data-state", !available ? "off" : notApplied ? "miss" : settings.on ? "on" : "off");
   }
 
   function decorate(host) {
@@ -211,7 +231,15 @@
       __wireframe: true,
       prepareClipboard(records, options) {
         if (!settings.on) return prepare(records, options);
-        return prepare(transformRecords(records), options);
+        const output = transformRecords(records);
+        const snapshots = (Array.isArray(records) ? records : []).filter(record => record?.type === "snapshot").length;
+        lastApplied = { transformed: lastCount, snapshots };
+        // Ticked but nothing rebuilt means the hook is wired into a build that
+        // cannot transform this capture. Say so instead of pasting the page.
+        notApplied = snapshots > 0 && lastCount === 0;
+        if (notApplied) console.warn(`[wireframe ${Core.BUILD.version}] the setting is on but no record was rebuilt; the loaded build is stale.`);
+        for (const panel of panels) sync(panel);
+        return prepare(output, options);
       },
       imageAssetSummary(records) {
         // A wireframe embeds no page images, so the "images included" sentence
@@ -232,6 +260,9 @@
     install,
     isEnabled: () => settings.on,
     isAvailable: () => available,
+    build: Core.BUILD.version,
+    wasApplied: () => lastApplied,
+    notApplied: () => notApplied,
     lastTransformed: () => lastCount,
     lastFailed: () => lastFailed,
     lastTruncated: () => lastTruncated,
