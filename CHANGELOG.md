@@ -4,7 +4,36 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
-## 1.8.0 — Wireframe
+## 1.8.1 — Wireframe becomes a capture setting
+
+### Changed
+
+- **Wireframe no longer has its own panel or copy button.** It is an option in the
+  existing **Viewports** popover, exactly like a width preset: tick
+  **Copy as wireframe**, choose **Low / Medium / High**, then press the normal
+  **Capture design** button. Every checked width is rebuilt in the same copy.
+- The rebuild runs on the captured snapshot immediately before it is encoded, so
+  the capture engine, responsive pipeline, redaction, size budgets and clipboard
+  write are all reused unchanged — nothing about the copy path is duplicated.
+- `extension/js/h2d_toolbar.js` and `extension/js/design-system.js` are back to
+  their 1.7.9 contents; the toolbar hash test proves the bundle is byte-identical.
+  Integration is now two readable files: `wireframe-core.js` (the transform) and
+  `wireframe.js` (the popover option, persistence and the clipboard hook).
+
+### Removed
+
+- The separate toolbar button, modal panel, **More tools** entry and the
+  self-scanning demo page from 1.8.0.
+
+### Fixed
+
+- Near-white page surfaces keep the lightest grey instead of disappearing, so
+  light headers and cards still read as structure.
+
+## 1.8.0 — Wireframe (first attempt)
+
+> Superseded by 1.8.1, which moves the feature into the Viewports popover. Kept
+> for history: this release shipped a separate panel and copy button.
 
 ### Added
 
