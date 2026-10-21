@@ -9,7 +9,7 @@ that drive the real extension with Playwright.
 npm test          # node --test tests/*.test.cjs
 ```
 
-**259 checks, 0 dependencies, ~1 second.** No install step, no browser.
+**288 checks, 0 dependencies, ~1 second.** No install step, no browser.
 
 | File | Covers |
 |---|---|
@@ -21,6 +21,7 @@ npm test          # node --test tests/*.test.cjs
 | `tests/design-system.test.cjs` | token extraction, renames, merges, exclusions, duplicates |
 | `tests/design-system-polish.test.cjs` | preview scaling, color normalization, typography metrics |
 | `tests/design-system-board.test.cjs` | board layout, clipboard payload shape, limits, manifest version |
+| `tests/wireframe.test.cjs` | wireframe levels, tone mapping, tree geometry, clipping, bars, placeholders, rendering, clipboard payload, cancellation, panel lifecycle, injection order |
 | `tests/no-onboarding.test.cjs` | no wizard/onboarding, every locale key resolves |
 
 These tests load the shipped files directly (`extension/js/*.js`) into a `vm`

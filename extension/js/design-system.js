@@ -16,6 +16,7 @@
   };
   const icons = {
     grid: "M2 2h5v5H2z M9 2h5v5H9z M2 9h5v5H2z M9 9h5v5H9z",
+    wireframe: "M2 3.5h12M2 8h12M2 12.5h12M5 3.5v9M11 3.5v9",
     close: "M4 4l8 8 M12 4l-8 8",
     download: "M8 2v8 M5 7l3 3 3-3 M3 11v3h10v-3",
     refresh: "M13 6A5 5 0 1 0 13 10 M13 2v4H9",
@@ -160,7 +161,19 @@ input::placeholder{color:rgba(255,255,255,.4)}.search:focus{border-color:var(--b
       const item = button("", () => { closeMenu(false); openPanel(); }); item.setAttribute("role", "menuitem");
       item.replaceChildren(svg(icons.grid));
       const content = el("span", null, "text"); content.append(el("span", "Generate design system"), el("small", "Extract and review local design tokens"));
-      item.append(content); menu.append(item); root.append(menu);
+      item.append(content); menu.append(item);
+      // The wireframe panel is a separate module; the menu only offers it when
+      // that module injected and attached successfully.
+      const wireframe = globalThis.PageCaptureWireframe;
+      if (wireframe?.openPanel) {
+        const wire = button("", () => { closeMenu(false); wireframe.openPanel(); });
+        wire.setAttribute("role", "menuitem");
+        wire.replaceChildren(svg(icons.wireframe));
+        const wireContent = el("span", null, "text");
+        wireContent.append(el("span", "Copy as wireframe"), el("small", "Rebuild this page as greyscale layers"));
+        wire.append(wireContent); menu.append(wire);
+      }
+      root.append(menu);
       const menuRect = menu.getBoundingClientRect();
       menu.style.left = `${Math.max(8, Math.min(innerWidth - menuRect.width - 8, rect.right - menuRect.width))}px`;
       menu.style.top = `${Math.max(8, rect.bottom + menuRect.height + 18 > innerHeight ? rect.top - menuRect.height - 10 : rect.bottom + 10)}px`;

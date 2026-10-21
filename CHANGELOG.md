@@ -4,6 +4,36 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.8.0 — Wireframe
+
+### Added
+
+- **Wireframe**: a third copy mode next to design layers and code. It rebuilds
+  the page you are looking at as editable, greyscale layers — measured boxes,
+  real text or text bars, and labelled placeholders — then copies it through the
+  existing rich clipboard path, so a paste into Figma Design stays editable.
+- **Three fidelity levels**, chosen in a live preview panel: **Low · Skeleton**
+  (outlined boxes and text bars), **Medium · Structure** (real text in a neutral
+  typeface, labelled placeholders, capped radii) and **High · Detail** (observed
+  type hierarchy, radii, border weights and greyscaled shadows).
+- **Scope switch**: full page or the visible area, plus **Rescan** when the page
+  changes underneath the panel.
+- New files `js/wireframe-core.js` (pure planning: tone mapping, text bars,
+  placeholder rules, limits) and `js/wireframe.js` (scan, render, preview panel,
+  copy). Both are plain readable files, injected before `h2d_toolbar.js`;
+  `js/design-system.js` adds the **Copy as wireframe** entry to **More tools**.
+- `tests/wireframe.test.cjs`: 29 checks covering levels, colour parsing, tone
+  mapping, tree geometry, clipping, bars, placeholders, rendering, the clipboard
+  payload, cancellation, panel lifecycle and the injection order.
+
+### Notes
+
+- No new permissions, no new network code. Wireframes contain no images, no
+  page CSS and no form values; images, canvas, video and cross-origin frames
+  become vector placeholders.
+- The existing toolbar, capture engine, design-system board and viewports are
+  untouched apart from one attach hook in `h2d_toolbar.js` and one menu entry.
+
 ## 1.7.9 — repository cleanup
 
 ### Changed

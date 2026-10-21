@@ -9,8 +9,8 @@ No account, no server, no telemetry, no uploads.</p>
 <p align="center">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/version-1.7.9-0d99ff" alt="version 1.7.9">
-  <img src="https://img.shields.io/badge/tests-259%20passing-brightgreen" alt="259 checks passing">
+  <img src="https://img.shields.io/badge/version-1.8.0-0d99ff" alt="version 1.8.0">
+  <img src="https://img.shields.io/badge/tests-288%20passing-brightgreen" alt="288 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -19,7 +19,7 @@ No account, no server, no telemetry, no uploads.</p>
   <img src="docs/screenshots/viewports.png" width="32%" alt="Viewports panel with Browser, 1600, 1440, 1024, 768 and 393 checked">
   <img src="docs/screenshots/design-system.png" width="32%" alt="Design system panel with colour tokens and typography specimens">
 </p>
-<p align="center"><sub>One toolbar on any page · Responsive widths without new tabs · Design system review + copy</sub></p>
+<p align="center"><sub>One toolbar on any page · Responsive widths without new tabs · Design system review + copy · Page-to-wireframe</sub></p>
 
 <p align="center">
   <img src="docs/screenshots/select-element.png" width="32%" alt="Selecting a card on the page with an outline and a size tooltip">
@@ -41,13 +41,14 @@ No account, no server, no telemetry, no uploads.</p>
 | **Capture several widths** | [Viewports](#viewports-responsive-widths) |
 | **Capture a dashboard's inner scroller** | [Scroll area](#scroll-area) |
 | **Get a design system out of a page** | [Design system](#design-system) |
+| **Turn a page into a wireframe** | [Wireframe](#wireframe) |
 | **Check the privacy claims** | [PRIVACY.md](PRIVACY.md) · [docs/PRIVACY-AUDIT.md](docs/PRIVACY-AUDIT.md) |
 | **Understand or change the code** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | **Run the tests / contribute** | [docs/TESTING.md](docs/TESTING.md) · [CONTRIBUTING.md](CONTRIBUTING.md) |
 | **See what's missing** (honest list) | [Known limits](#known-limits) |
 | **Fix a problem** | [docs/FAQ.md](docs/FAQ.md) |
 
-> **Status: 1.7.9, source-distributed.** Not on the Chrome Web Store yet, so you
+> **Status: 1.8.0, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
 ---
@@ -59,7 +60,9 @@ image fills. This extension builds that format from a live page, so pasting into
 Figma gives you **editable layers** instead of a screenshot. It also offers the
 plain-HTML escape hatch (`Capture code`), responsive copies at chosen widths, and
 an optional design-system pass that extracts colours, type, spacing, radii,
-shadows and effects into a reviewable board.
+shadows and effects into a reviewable board. A **wireframe** mode rebuilds the
+page as editable greyscale blocks at three fidelity levels, for when you need to
+redesign the structure rather than reproduce the styling.
 
 **Who it is for:** designers who want to pull a reference or a legacy screen into
 Figma, engineers who need a page's actual DOM and assets, and anyone who needs a
@@ -77,6 +80,7 @@ capture without handing their browsing data to a service.
 | **Capture code** | Deliberately raw `document.documentElement.outerHTML`. No filtering — it is what it says. |
 | **Viewports** | Check 1600 / 1440 / 1024 / 768 / 393 (editable, 200–3840px) and capture each width in one copy. No new tabs, no reloads, no resizing of the live page. |
 | **Design system** | Extracts tokens in six categories, lets you rename, merge and exclude, then copies one editable reference board. |
+| **Wireframe** | Rebuilds the page as editable greyscale layers at **Low**, **Medium** or **High** fidelity, with a live preview before copying. No screenshots, no images, no page CSS. |
 | **Copy all / per-item copy** | The tray keeps captures per tab; copy one, several or everything, as design layers or as code. |
 | **Honest feedback** | After a copy: "Copied to clipboard · Images: 12 included, 1 not embedded". Failures name themselves instead of silently truncating. |
 | **Local everything** | `chrome.storage.local` for the tray, clipboard for output, nothing else. |
@@ -136,6 +140,7 @@ Two things are worth knowing:
 | CSS per responsive copy | 5 MiB | `viewports.js` |
 | Rich batch | 48 MiB JSON / 64 MiB HTML | `capture-safety.js` |
 | Design-system board | 16 MiB, 480 tokens, 200,000px tall | `design-system-board.js` |
+| Wireframe | 4,000 blocks, 2,500 text layers, 4,000×20,000px, 16 MiB | `wireframe-core.js`, `wireframe.js` |
 | Asset recovery | 64 URLs per request, 10 MiB each, 5s | `background.js` |
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -202,6 +207,47 @@ native variables or shared styles.
 
 ---
 
+## Wireframe
+
+Sometimes you do not want the page — you want its **skeleton**. **More tools → Copy
+as wireframe** rebuilds what you are looking at as editable, greyscale layers,
+then writes it through the same rich clipboard path as everything else, so the
+paste into Figma Design is a frame of boxes, text and placeholders you can move.
+
+Pick a fidelity in the panel and the preview updates before you copy:
+
+| Level | What it keeps | What it replaces |
+|---|---|---|
+| **Low · Skeleton** | Box geometry, section boundaries, heading weight | All text becomes grey bars; no radii, shadows, media or colour |
+| **Medium · Structure** | Real text in a neutral typeface, real sizes and alignment | Colours flatten to two greys, radii cap at 6px, images become labelled `+` placeholders |
+| **High · Detail** | The page's own font stack, type hierarchy, radii, border weights | Colour becomes a five-step grey ramp, shadows are re-coloured, images stay placeholders |
+
+How it works:
+
+- **Measured, not guessed.** Every box comes from the element's real
+  `getBoundingClientRect()`, so proportions and spacing are the page's own.
+- **Structure survives.** Wrappers that add nothing are dropped; their children
+  are re-parented without moving. Clipped content is not floated outside its
+  scroller, and fixed bars land at the top of a full-page wireframe.
+- **Interaction is the point.** Buttons, inputs and cards keep a border so the
+  wireframe reads as something you can click, not a grey soup.
+- **No assets.** Images, `background-image`, video, canvas, SVG artwork and
+  cross-origin frames become vector placeholders with `alt` labels. Nothing is
+  fetched, so it is fast and cannot leak a request.
+- **No form values.** Inputs show their placeholder only; typed values are never
+  read.
+- **Scope:** full page or just the visible area, then **Rescan** if the page
+  changed. The panel is a live preview of the exact board that will be copied.
+
+Low is deliberately fast and structural, Medium is the default for design
+reviews, and High is for "rebuild this screen, keep the type".
+
+Want to see it without installing? [`docs/wireframe-demo.html`](docs/wireframe-demo.html)
+loads the shipped scanner and renderer, scans its own sample page and shows all
+three levels — see [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) for how to serve it.
+
+---
+
 ## Privacy, in one line
 
 **The extension has no server.** Captures live in `chrome.storage.local` and your
@@ -233,6 +279,8 @@ figextenison/
 │   │   ├── design-system-core.js  token extraction + review logic (pure)
 │   │   ├── design-system-board.js editable board + clipboard payload
 │   │   ├── design-system.js     the Design System panel
+│   │   ├── wireframe-core.js    wireframe planning: levels, tones, bars (pure)
+│   │   ├── wireframe.js         wireframe scan, render, preview panel, copy
 │   │   ├── h2d_toolbar.js       toolbar, capture engine, serializer, picker
 │   │   └── options.js           options page controller
 │   ├── font/, img/, _locales/, icon*.png
@@ -241,11 +289,12 @@ figextenison/
 │   ├── FAQ.md                   "is this a bug?" and how to verify privacy
 │   ├── TESTING.md               unit + browser suites, fixtures, CI
 │   ├── SCREENSHOTS.md           image status + how to retake them
+│   ├── wireframe-demo.html      self-scanning demo of the three wireframe levels
 │   ├── GITHUB_SETUP.md          repo settings, releases, upload mistakes
 │   ├── PRIVACY-AUDIT.md         long-form privacy verification per release
 │   ├── screenshots/             images used above
 │   └── brand/                   icon, cover, social preview
-├── tests/                       9 unit suites + 10 Chromium suites + fixtures
+├── tests/                       10 unit suites + 10 Chromium suites + fixtures
 ├── scripts/                     check-docs.js, pack.js
 ├── .github/workflows/ci.yml     what runs on every push and tag
 ├── CHANGELOG.md · CONTRIBUTING.md · PRIVACY.md · SECURITY.md · LICENSE (MIT)
@@ -260,7 +309,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 259 dependency-free checks, no install, ~1s
+npm test          # 288 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -282,9 +331,10 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **259 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **288 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
-  review, board payload, locale coverage, no onboarding.
+  review, board payload, wireframe planning/rendering/clipboard, locale
+  coverage, no onboarding.
 - **10 Chromium suites** — real toolbar injection, native rich clipboard payloads,
   real 1280/768/393px output, source DOM/scroll/focus preservation, denied-copy
   recovery, cancellation, zero remote requests from fixtures.
@@ -309,6 +359,10 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
   [Viewports](#viewports-responsive-widths).
 - **Blocked assets stay blocked.** Figma-hosted, Sentry and private-address hosts
   are refused by policy; those images are reported as not embedded.
+- **A wireframe is a reconstruction, not the page.** Fonts are substituted
+  except at High, JS-driven layout and CSS animations are not replayed, and
+  anything that only exists as pixels (canvas, embedded frames, WebGL) becomes a
+  placeholder. Text wrapping can shift slightly if the substitute font is wider.
 - **Clipboard writes are final once submitted.** Chrome cannot revoke a native
   write; cancel works up to that point.
 - **No live Figma paste test.** Clipboard payloads are verified natively, but the
@@ -330,6 +384,7 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
 | Some images missing after paste | Blocked host, 404, or credentials required — see the "not embedded" count |
 | Copy does nothing | Clipboard write denied → use **Copy all** from the tray |
 | Everything is slow on a huge page | Node/CSS budgets; capture a smaller section |
+| Wireframe is empty or mostly blank | The page paints into canvas/WebGL, or the content is inside a cross-origin frame → capture layers instead |
 
 More in [docs/FAQ.md](docs/FAQ.md).
 

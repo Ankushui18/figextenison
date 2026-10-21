@@ -1,10 +1,41 @@
 # Privacy and verification audit
 
-Version: **1.7.9**
+Version: **1.8.0**
 
-Review/test date: **20 October 2026**
+Review/test date: **21 October 2026**
 
-## Current release: 1.7.9 packaged-leftovers cleanup and repository layout
+## 1.8.0 — wireframe module
+
+- **Added:** `extension/js/wireframe-core.js` (pure planning: levels, grey ramp,
+  text bars, limits) and `extension/js/wireframe.js` (scan, render, preview panel,
+  copy). Both are readable source, injected before `js/h2d_toolbar.js`. The only
+  change to existing code is one attach hook in `h2d_toolbar.js` and one menu item
+  in `design-system.js`; stripping that hook restores the 1.7.9 toolbar byte for
+  byte (`tests/design-system.test.cjs` still hashes the rest of the bundle).
+- **No new permissions.** The manifest still requests `storage`, `tabs`,
+  `unlimitedStorage`, `scripting`, `clipboardWrite` and `<all_urls>` host access.
+- **No network code in the new files.** `tests/wireframe.test.cjs` fails the build
+  if `fetch`, `XMLHttpRequest`, `createObjectURL`, `chrome.runtime`/`chrome.storage`,
+  a `src=` assignment or `srcdoc` appears in either file.
+- **What a wireframe can contain:** measured geometry, text, colours reduced to a
+  fixed grey ramp, and vector placeholders. It contains **no images, no page CSS,
+  no fonts, no canvas pixels, no cross-origin frame content and no form values** —
+  inputs contribute their placeholder only.
+- **Reading, not writing.** The scanner calls `getBoundingClientRect`,
+  `getComputedStyle` and `Range.getClientRects`; it never writes an attribute,
+  scrolls or resizes the page. `tests/wireframe.test.cjs` asserts the source DOM is
+  byte-identical after a scan.
+- **Isolation and cleanup.** The board renders in a `sandbox="allow-same-origin"`
+  iframe carrying `default-src 'none'`, styled through CSSOM only. The temporary
+  frame is removed in a `finally` block after success, failure or cancellation,
+  and preparation is bounded at 12 s / 16 MiB.
+- **Inventory:** **22 files / 786,506 bytes**, of which **12 JavaScript files /
+  412,764 bytes**. Manifest version is **1.8.0**; `tests/design-system-board.test.cjs`
+  tracks that version.
+- **Verification:** `npm run verify` — **288 checks, 0 failures**, including the
+  repository hygiene checks (version handshake, layout, docs links, quoted counts).
+
+## 1.7.9 — packaged-leftovers cleanup and repository layout
 
 This entry removes files and moves the runtime, but changes no capture,
 clipboard, permission or network behavior.
