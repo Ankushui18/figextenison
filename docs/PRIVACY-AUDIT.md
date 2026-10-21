@@ -1,10 +1,34 @@
 # Privacy and verification audit
 
-Version: **1.8.0**
+Version: **1.8.1**
 
 Review/test date: **21 October 2026**
 
-## 1.8.0 — wireframe module
+## 1.8.1 — wireframe as a capture setting
+
+- **Shape of the change.** Wireframe is an option in the Viewports popover; the
+  normal **Capture design** copy writes it. `extension/js/h2d_toolbar.js` and
+  `extension/js/design-system.js` are byte-identical to 1.7.9 (`npm test` hashes
+  the bundle with the known hooks stripped), so the capture engine, the toolbar
+  and the design-system panel are provably untouched.
+- **Two seams only.** `js/wireframe.js` decorates the Viewports popover when it
+  opens and wraps `PageCaptureSafety.prepareClipboard` once. The wrapper delegates
+  unchanged when the option is off.
+- **What a wireframe can contain:** measured geometry, text, colours reduced to a
+  fixed grey ramp and vector placeholders. It contains **no images, no page CSS,
+  no fonts, no canvas pixels, no cross-origin frame content and no form values** —
+  inputs contribute their placeholder only. The transform empties `assets` and
+  strips URL attributes, so no image data can be embedded and no asset recovered.
+- **No new permissions and no new network code.** `tests/wireframe.test.cjs` fails
+  the build if `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, clipboard
+  reads/writes or `chrome.runtime`/`chrome.tabs`/`chrome.scripting` appear in
+  either file. The only storage use is the saved choice (`pc_wireframe_v1`).
+- **Nothing is mutated.** The stored capture is left as captured, so the wireframe
+  is reversible; a record that cannot be rewritten is copied unchanged.
+- **Inventory:** **22 files / 22 bytes**, of which **12 JavaScript
+  files / 377,793 bytes**. Manifest version is **1.8.1**.
+
+## 1.8.0 — wireframe module (first attempt)
 
 - **Added:** `extension/js/wireframe-core.js` (pure planning: levels, grey ramp,
   text bars, limits) and `extension/js/wireframe.js` (scan, render, preview panel,
@@ -32,7 +56,7 @@ Review/test date: **21 October 2026**
 - **Inventory:** **22 files / 786,506 bytes**, of which **12 JavaScript files /
   412,764 bytes**. Manifest version is **1.8.0**; `tests/design-system-board.test.cjs`
   tracks that version.
-- **Verification:** `npm run verify` — **288 checks, 0 failures**, including the
+- **Verification:** `npm run verify` — **287 checks, 0 failures**, including the
   repository hygiene checks (version handshake, layout, docs links, quoted counts).
 
 ## 1.7.9 — packaged-leftovers cleanup and repository layout

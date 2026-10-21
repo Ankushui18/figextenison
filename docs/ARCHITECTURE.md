@@ -37,8 +37,8 @@ capture back to the worker.
 | `js/design-system-core.js` | pure token extraction/review/merge logic (no DOM, no network) | medium, readable |
 | `js/design-system-board.js` | builds the editable board and the `text/html` clipboard payload | medium, readable |
 | `js/design-system.js` | the Design System panel UI, and the **More tools** menu | medium, readable |
-| `js/wireframe-core.js` | pure wireframe planning: levels, grey ramps, text bars, placeholder rules, tree geometry | medium, readable |
-| `js/wireframe.js` | wireframe scan, renderer, preview panel, copy path | medium, readable |
+| `js/wireframe-core.js` | pure wireframe transform: levels, grey ramps, text bars, placeholders, the capture-model walk | medium, readable |
+| `js/wireframe.js` | the **Wireframe** option inside the Viewports popover, its saved choice, and the clipboard hook that applies the transform | small, readable |
 | `js/h2d_toolbar.js` | **everything else in the page**: toolbar chrome, capture engine, serializer, picker, viewports popover, clipboard write | large, minified |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
@@ -46,12 +46,16 @@ capture back to the worker.
 If you only need to change a toast message or a limit, it is probably in
 `capture-safety.js` or `viewports.js`, not in the minified bundle.
 
-Feature panels are plug-ins, not part of the bundle. `design-system.js` and
-`wireframe.js` both behave the same way: the toolbar calls
+The Design System panel is a plug-in: the toolbar calls
 `attach(controller, helpers)` once, the panel mounts its own host element in a
 closed shadow root, adds a menu entry, and cleans up on
-`controller.lifecycleAbort`. Removing `wireframe.js` from the injection list
-leaves the rest of the extension untouched — the menu simply stops offering it.
+`controller.lifecycleAbort`.
+
+The wireframe module needs none of that. It is a **capture setting**, so it only
+touches two seams that already exist: the Viewports popover (decorated when it
+opens) and `PageCaptureSafety.prepareClipboard` (wrapped once, at injection).
+`h2d_toolbar.js` and `design-system.js` are unchanged, which the toolbar hash
+test verifies byte for byte.
 
 ## Message protocol
 
@@ -121,32 +125,40 @@ replayed. See "Known limits" in the README.
 
 ## Wireframe
 
-The wireframe mode is a two-file plug-in and shares the capture engine rather
-than duplicating it:
+Wireframe is a **capture setting**, not a second capture path. Its whole job is to
+rewrite a finished capture just before it is encoded:
 
-1. **Scan** (`wireframe.js`). A depth- and count-bounded walk of the live DOM
-   records boxes, text runs and media placeholders with absolute coordinates.
-   Text is measured with `Range.getClientRects()`, which gives real line boxes —
-   so a "text bar" lines up with the line it replaces. The page is never written
-   to: no attributes, no scroll, no resize, and no image is loaded.
-2. **Plan** (`wireframe-core.js`). Pure functions turn that flat scan into a tree:
-   colours are reduced to a fixed grey ramp per level, radii/borders/shadows are
-   clamped or re-coloured, text becomes either bars (Low) or styled text
-   (Medium/High), and content outside a clipping ancestor is dropped. The plan is
-   deterministic, so the preview and the copy are the same board.
-3. **Render** (`wireframe.js`). Each plan block becomes an absolutely positioned
-   element with explicit styles — no inherited page CSS, no external fonts, no
-   network URLs. Placeholder `+` marks are real rectangles, not an image.
-4. **Copy.** The board is rendered again into a script-disabled, `sandbox`ed
-   iframe with a `default-src 'none'` policy, then captured with the same
-   `capture → serialize → makeClipboardHtml → navigator.clipboard.write` path the
-   design-system board uses. Preparation is bounded at 12s and 16 MiB, and the
-   temporary frame is always removed.
+```
+Capture design ─► engine builds the snapshot(s) ─► PageCaptureSafety.prepareClipboard
+                                                     │  (wireframe.js wraps this)
+                                                     ├─ setting off → records unchanged
+                                                     └─ setting on  → wireframe-core.js rewrites each h2dJson
+                                                   ─► encode ─► clipboard.write
+```
 
-The preview is the same board scaled with a CSS transform, so browsing it can
-never change what gets copied.
+- **Why there.** `prepareClipboard` is the one funnel used by *Capture design*,
+  per-item copy and *Copy all*. Wrapping it means the wireframe inherits the
+  existing responsive pipeline (one record per checked width), redaction, size
+  budgets, cancellation and the clipboard write — and it is reversible, because
+  the stored record is never mutated.
+- **What the transform does** (`wireframe-core.js`, pure). It walks the
+  version-2 snapshot model and rewrites only presentation: colours become a fixed
+  grey ramp, radii/borders/shadows are clamped or re-coloured, typography switches
+  to a neutral face (except at High), text becomes bars (Low) and images, video,
+  canvas, SVG artwork and embeds collapse to labelled vector placeholders. It also
+  empties `assets` and strips URL attributes, so nothing can be embedded or
+  fetched. Geometry, ids, ordering and `documentRect` are untouched.
+- **Why not re-measure.** Measuring the live DOM again would need its own picker,
+  its own scroll handling and its own responsive copies — a second capture engine.
+  Rewriting the finished capture keeps one source of truth for layout.
+- **The option** (`wireframe.js`). The Viewports popover is rebuilt on every open,
+  so the module watches for `#__pc_viewports__` and appends a group to its open
+  shadow root: a checkbox, three level buttons and a one-line hint. The choice is
+  saved in `chrome.storage.local` under `pc_wireframe_v1`.
+- **Safe failure.** A record that is not a version-2 snapshot, or does not parse,
+  is copied unchanged; a wireframe never turns a working copy into an error.
 
-## Where to change things
+## Where to change things## Where to change things
 
 | I want to change… | Go to |
 |---|---|

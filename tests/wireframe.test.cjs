@@ -1,5 +1,6 @@
 'use strict';
-// Wireframe planning, rendering and copy path. Runs against the shipped files
+// Wireframe as a capture setting: the transform, the Viewports option that turns
+// it on, and the clipboard hook that applies it. Runs against the shipped files
 // in a vm context with a small dependency-free DOM, so no browser is needed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,71 +13,50 @@ const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 
 /* ----------------------------------------------------------- mini DOM ---- */
 
-const DEFAULT_STYLE = {
-  display: 'block', visibility: 'visible', opacity: '1', contentVisibility: 'visible', position: 'static',
-  fontSize: '16px', fontWeight: '400', lineHeight: '24px', fontFamily: '"Helvetica Neue", Arial, sans-serif',
-  textAlign: 'left', textTransform: 'none', fontStyle: 'normal', textDecorationLine: 'none', letterSpacing: 'normal',
-  backgroundColor: 'rgba(0, 0, 0, 0)', borderTopStyle: 'none', borderTopWidth: '0px', borderRightWidth: '0px',
-  borderBottomWidth: '0px', borderLeftWidth: '0px', borderTopLeftRadius: '0px', borderBottomRightRadius: '0px',
-  borderTopColor: 'rgb(0, 0, 0)', boxShadow: 'none', backgroundImage: 'none', overflow: 'visible', overflowY: 'visible',
-  color: 'rgb(17, 17, 17)'
-};
-
-class ClassList {
+class FakeClassList {
   constructor(owner) { this.owner = owner; }
-  *[Symbol.iterator]() { return String(this.owner.className || '').split(/\s+/).filter(Boolean)[Symbol.iterator](); }
   contains(name) { return String(this.owner.className || '').split(/\s+/).includes(name); }
-  toggle(name, force) {
-    const names = String(this.owner.className || '').split(/\s+/).filter(Boolean).filter(entry => entry !== name);
-    if (force !== false) names.push(name);
-    this.owner.className = names.join(' ');
-    return force !== false;
-  }
 }
 
-class FakeText {
-  constructor(value, rects = []) { this.nodeType = 3; this.nodeValue = value; this.rects = rects; this.parentNode = null; }
+class FakeStyle {
+  constructor() { this._values = new Map(); }
+  setProperty(name, value) { this._values.set(name, value); }
+  getPropertyValue(name) { return this._values.get(name) || ''; }
 }
 
 class FakeElement {
-  constructor(tag, document) {
+  constructor(tag, ownerDocument) {
     this.nodeType = 1;
     this.tagName = String(tag).toUpperCase();
     this.localName = String(tag).toLowerCase();
-    this.ownerDocument = document;
-    this.style = {};
+    this.ownerDocument = ownerDocument;
+    this.style = new FakeStyle();
     this.attributes = {};
     this.children = [];
     this.childNodes = [];
     this.parentNode = null;
     this.className = '';
-    this.classList = new ClassList(this);
+    this.classList = new FakeClassList(this);
     this.dataset = {};
     this.id = '';
     this.shadowRoot = null;
+    this.type = '';
+    this.checked = false;
+    this.disabled = false;
     this._listeners = new Map();
-    this._rect = { left: 0, top: 0, width: 0, height: 0 };
-    this.computed = null;
-    this.open = false;
-    this.clientWidth = 640;
-    this.scrollTop = 0;
   }
-  get childElementCount() { return this.children.length; }
   get isConnected() {
     let node = this;
     while (node.parentNode) node = node.parentNode;
     return node === this.ownerDocument || node?.nodeType === 9;
   }
-  get textContent() {
-    return this.childNodes.map(child => child.nodeType === 3 ? child.nodeValue : child.textContent).join('');
-  }
+  get textContent() { return this.childNodes.map(child => child.nodeType === 3 ? child.nodeValue : child.textContent).join(''); }
   set textContent(value) {
     this.childNodes = []; this.children = [];
-    if (value !== '' && value != null) this.append(new FakeText(String(value)));
+    if (value !== '' && value != null) this.append({ nodeType: 3, nodeValue: String(value), parentNode: null });
   }
   setAttribute(name, value) { this.attributes[name] = String(value); if (name === 'id') this.id = String(value); }
   getAttribute(name) { return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null; }
-  hasAttribute(name) { return Object.hasOwn(this.attributes, name); }
   removeAttribute(name) { delete this.attributes[name]; }
   append(...nodes) {
     for (const node of nodes) {
@@ -85,193 +65,194 @@ class FakeElement {
       if (node.nodeType === 1) this.children.push(node);
     }
   }
-  replaceChildren(...nodes) {
-    this.childNodes = []; this.children = [];
-    this.append(...nodes);
-  }
   remove() {
     if (!this.parentNode) return;
     this.parentNode.childNodes = this.parentNode.childNodes.filter(node => node !== this);
     this.parentNode.children = this.parentNode.children.filter(node => node !== this);
     this.parentNode = null;
   }
-  appendChild(node) { this.append(node); return node; }
   attachShadow(options) {
     const shadow = new FakeElement('#shadow-root', this.ownerDocument);
     shadow.parentNode = this;
-    this._shadow = shadow;
-    this.shadowRoot = options?.mode === 'open' ? shadow : null;
+    this.shadowRoot = shadow;
+    this.shadowMode = options?.mode;
     return shadow;
   }
   addEventListener(type, listener) {
     if (!this._listeners.has(type)) this._listeners.set(type, []);
     this._listeners.get(type).push(listener);
   }
-  removeEventListener(type, listener) {
-    this._listeners.set(type, (this._listeners.get(type) || []).filter(entry => entry !== listener));
-  }
   dispatch(type, event = {}) {
-    for (const listener of this._listeners.get(type) || []) listener({ type, preventDefault() {}, stopPropagation() {}, ...event });
+    const payload = { type, preventDefault() {}, stopPropagation() {}, ...event };
+    for (const listener of this._listeners.get(type) || []) listener(payload);
   }
-  click() { this.dispatch('click'); }
-  focus() { this.ownerDocument.activeElement = this; }
-  showModal() { this.open = true; }
-  close() { this.open = false; }
-  getBoundingClientRect() { return this._rect; }
+  click() { this.checked = this.type === 'checkbox' ? !this.checked : this.checked; this.dispatch('click'); }
   querySelector(selector) {
-    const match = /^\[([a-z-]+)(?:="([^"]*)")?\]$/.exec(selector);
-    if (!match) return null;
-    const [, name, value] = match;
+    const attribute = /^\[([a-z-]+)\]$/.exec(selector);
+    const className = /^\.([a-z-]+)$/.exec(selector);
+    const tag = /^[a-z]+$/.test(selector) ? selector.toUpperCase() : null;
+    if (!attribute && !className && !tag) return null;
     const stack = [...this.children];
     while (stack.length) {
       const node = stack.shift();
-      const attribute = node.getAttribute(name);
-      if (attribute != null && (value === undefined || attribute === value)) return node;
+      if (attribute && node.getAttribute(attribute[1]) != null) return node;
+      if (className && (node.className || '').split(/\s+/).includes(className[1])) return node;
+      if (tag && node.tagName === tag) return node;
       stack.push(...node.children);
     }
     return null;
   }
   querySelectorAll(selector) {
-    const results = [];
-    const match = /^\[([a-z-]+)(?:="([^"]*)")?\]$/.exec(selector);
-    if (!match) return results;
+    const attribute = /^\[([a-z-]+)\]$/.exec(selector);
+    const tag = /^[a-z]+$/.test(selector) ? selector.toUpperCase() : null;
+    const done = [];
     const stack = [...this.children];
     while (stack.length) {
       const node = stack.shift();
-      const attribute = node.getAttribute(match[1]);
-      if (attribute != null && (match[2] === undefined || attribute === match[2])) results.push(node);
+      if (attribute && node.getAttribute(attribute[1]) != null) done.push(node);
+      else if (tag && node.tagName === tag) done.push(node);
       stack.push(...node.children);
     }
-    return results;
+    return done;
   }
 }
 
 class FakeDocument {
-  constructor({ width = 1200, height = 2000 } = {}) {
+  constructor() {
     this.nodeType = 9;
-    this.title = 'Fixture page';
-    this.head = new FakeElement('head', this);
-    this.body = new FakeElement('body', this);
     this.documentElement = new FakeElement('html', this);
     this.documentElement.parentNode = this;
+    this.head = new FakeElement('head', this);
+    this.body = new FakeElement('body', this);
     this.documentElement.append(this.head, this.body);
-    this.documentElement.clientWidth = width;
-    this.documentElement.scrollWidth = width;
-    this.documentElement.scrollHeight = height;
-    this.body.scrollWidth = width;
-    this.body.scrollHeight = height;
-    this.title = 'Fixture page';
-    this.activeElement = null;
-    this._shadow = null;
   }
-  createElement(tag) {
-    const node = new FakeElement(tag, this);
-    if (String(tag).toLowerCase() === 'iframe') {
-      const inner = new FakeDocument({ width: 320, height: 480 });
-      inner.documentElement.style = {};
-      inner.body.style = {};
-      node.contentDocument = inner;
+  createElement(tag) { return new FakeElement(tag, this); }
+  getElementById(id) {
+    const stack = [this.documentElement];
+    while (stack.length) {
+      const node = stack.shift();
+      if (node.id === id) return node;
+      stack.push(...node.children);
     }
-    return node;
+    return null;
   }
-  createElementNS(namespace, tag) { return new FakeElement(tag, this); }
-  createTextNode(value) { return new FakeText(String(value)); }
-  createRange() {
-    return {
-      node: null,
-      selectNodeContents(node) { this.node = node; },
-      getClientRects() { return this.node?.rects || []; },
-      detach() {}
-    };
-  }
-  querySelector() { return null; }
   addEventListener() {}
-  removeEventListener() {}
 }
 
 /* ------------------------------------------------------------- harness --- */
 
 function harness(options = {}) {
   const document = options.document || new FakeDocument();
-  const writes = [];
-  const clipboard = {
-    async write(items) {
-      writes.push(items);
-      if (options.write) return options.write(items);
-      return undefined;
-    },
-    async writeText() {}
+  const stored = { ...(options.storage || {}) };
+  const sets = [];
+  const chrome = {
+    storage: {
+      local: {
+        async get(key) { return { [key]: stored[key] }; },
+        async set(value) { sets.push(value); Object.assign(stored, value); }
+      }
+    }
   };
+  const safetyCalls = [];
+  const Safety = {
+    limits: { jsonBytes: 48 * 1024 * 1024 },
+    prepareClipboard: async (records, opts) => { safetyCalls.push({ records, opts }); return { size: 1, records }; },
+    imageAssetSummary: records => ({ total: 3, included: 2, notEmbedded: 1 }),
+    sanitizeDocument: doc => ({ changed: false, removed: 0 }),
+    utf8Bytes: async () => 0,
+    createSession: () => ({})
+  };
+  let observerCallback = null;
   const context = vm.createContext({
-    URL, Blob, AbortController, AbortSignal, DOMException, document,
-    location: { href: 'https://fixture.test/page' },
-    window: { innerWidth: 1200, innerHeight: 900, scrollX: 0, scrollY: 0, addEventListener() {}, removeEventListener() {} },
-    navigator: { clipboard },
-    ClipboardItem: class { constructor(formats) { this.formats = formats; this.types = Object.keys(formats); } },
-    getComputedStyle: element => element?.computed || DEFAULT_STYLE,
-    requestAnimationFrame: callback => setTimeout(callback, 0),
-    performance,
-    setTimeout, clearTimeout, console
+    document, chrome, URL, Blob, AbortController, AbortSignal, DOMException,
+    console, setTimeout, clearTimeout,
+    MutationObserver: class { constructor(callback) { observerCallback = callback; } observe() {} disconnect() {} },
+    Image: class {}
   });
   context.globalThis = context;
-  vm.runInContext(read('js/design-system-core.js'), context);
-  vm.runInContext(read('js/design-system-board.js'), context);
+  context.PageCaptureSafety = Safety;
   vm.runInContext(read('js/wireframe-core.js'), context);
   vm.runInContext(read('js/wireframe.js'), context);
-  return { context, document, writes, clipboard, Core: context.PageCaptureWireframeCore, Wireframe: context.PageCaptureWireframe };
+  return {
+    context, document, chrome, stored, sets, safetyCalls,
+    Core: context.PageCaptureWireframeCore,
+    Wireframe: context.PageCaptureWireframe,
+    Safety: context.PageCaptureSafety,
+    fireMutation(added) { observerCallback?.([{ addedNodes: added }]); }
+  };
 }
 
-/* Fixture helpers: every element carries a fake computed style and rect, and
- * every text node carries the client rects a Range would report. */
-function pageElement(document, tag, { rect, computed = {}, children = [], text = null, textRects = null, attributes = {} } = {}) {
-  const node = document.createElement(tag);
-  node._rect = { left: rect[0], top: rect[1], width: rect[2], height: rect[3] };
-  node.computed = { ...DEFAULT_STYLE, ...computed };
-  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
-  if (text != null) node.append(new FakeText(text, (textRects || [rect]).map(([left, top, width, height]) => ({ left, top, width, height }))));
-  for (const child of children) node.append(child);
-  return node;
+/* A capture document shaped like the extension's version-2 snapshot model. */
+function snapshot(overrides = {}) {
+  const text = (text, rect, lineCount = 1) => ({ nodeType: 3, id: `t-${text.slice(0, 8)}`, text, rect, lineCount });
+  const element = (tag, rect, extra = {}) => ({
+    nodeType: 1, id: extra.id || `e-${tag}-${Math.random().toString(16).slice(2, 8)}`, tag,
+    attributes: extra.attributes || {}, styles: { display: 'block', ...extra.styles }, rect,
+    childNodes: extra.childNodes || []
+  });
+  const root = element('DIV', { x: 0, y: 0, width: 1200, height: 900 }, {
+    id: 'root',
+    styles: { backgroundColor: 'rgb(255, 255, 255)', color: 'rgb(17, 17, 17)', fontFamily: '"Brand Serif", Georgia, serif', fontSize: '16px', lineHeight: '24px' },
+    childNodes: [
+      element('HEADER', { x: 0, y: 0, width: 1200, height: 80 }, {
+        id: 'header',
+        attributes: { class: 'site-header sticky', 'aria-label': 'Primary' },
+        styles: { backgroundColor: 'rgb(250, 250, 250)', borderTopWidth: '0px', color: 'rgb(17, 17, 17)', fontSize: '16px', lineHeight: '24px' },
+        childNodes: [text('Northwind Studio', { x: 24, y: 24, width: 180, height: 32 })]
+      }),
+      element('IMG', { x: 40, y: 120, width: 320, height: 200 }, {
+        id: 'hero-image',
+        attributes: { src: 'https://fixture.test/hero.png', currentSrc: 'https://fixture.test/hero.png', alt: 'Dashboard preview', class: 'hero' },
+        styles: { backgroundImage: 'url("https://fixture.test/hero.png")', borderTopLeftRadius: '16px' },
+        placeholderUrl: 'https://fixture.test/hero.png'
+      }),
+      element('H1', { x: 40, y: 360, width: 520, height: 64 }, {
+        id: 'heading',
+        styles: { color: 'rgb(13, 153, 255)', fontFamily: '"Brand Serif", Georgia, serif', fontSize: '48px', fontWeight: '700', lineHeight: '56px', letterSpacing: '-1px', transform: 'none' },
+        childNodes: [text('We make complicated products feel obvious.', { x: 40, y: 360, width: 520, height: 64 }, 2)]
+      }),
+      element('BUTTON', { x: 40, y: 460, width: 168, height: 48 }, {
+        id: 'cta',
+        attributes: { class: 'btn primary' },
+        styles: { backgroundColor: 'rgb(13, 153, 255)', borderTopLeftRadius: '10px', borderTopWidth: '0px', boxShadow: 'rgba(13, 153, 255, 0.4) 0px 8px 24px 0px', color: 'rgb(255, 255, 255)', fontSize: '14px', lineHeight: '20px' },
+        childNodes: [text('Start a project', { x: 56, y: 474, width: 120, height: 20 })]
+      }),
+      element('SVG', { x: 900, y: 40, width: 24, height: 24 }, {
+        id: 'icon',
+        childNodes: [element('PATH', { x: 900, y: 40, width: 24, height: 24 }, { id: 'path', styles: { fill: 'rgb(0, 0, 0)' } })]
+      })
+    ]
+  });
+  return {
+    version: 2,
+    documentTitle: 'Fixture page',
+    root,
+    documentRect: { x: 0, y: 0, width: 1200, height: 900 },
+    viewportRect: { x: 0, y: 0, width: 1200, height: 900 },
+    devicePixelRatio: 2,
+    assets: {
+      'https://fixture.test/hero.png': { blob: { base64Blob: 'data:image/png;base64,AAAA', type: 'image/png' } }
+    },
+    fonts: [{ family: 'Brand Serif' }],
+    ...overrides
+  };
 }
 
-function fixturePage(document) {
-  const body = document.body;
-  const headingText = pageElement(document, 'span', { rect: [40, 40, 260, 40], text: 'Welcome to the studio' });
-  const header = pageElement(document, 'header', {
-    rect: [0, 0, 1200, 120], computed: { backgroundColor: 'rgb(250, 250, 250)' }, children: [headingText]
-  });
-  const paragraphText = pageElement(document, 'span', {
-    rect: [40, 180, 520, 24],
-    text: 'We design calm interfaces for teams that ship.'
-  });
-  const paragraph = pageElement(document, 'p', { rect: [40, 170, 520, 48], children: [paragraphText] });
-  const image = pageElement(document, 'img', {
-    rect: [680, 170, 320, 200], attributes: { alt: 'Dashboard preview' }
-  });
-  const buttonText = pageElement(document, 'span', { rect: [40, 420, 96, 20], text: 'Start a project' });
-  const button = pageElement(document, 'button', {
-    rect: [40, 404, 168, 48],
-    computed: { backgroundColor: 'rgb(13, 153, 255)', borderTopLeftRadius: '8px', borderTopWidth: '0px' },
-    children: [buttonText]
-  });
-  const main = pageElement(document, 'main', {
-    rect: [0, 120, 1200, 1000], children: [paragraph, image, button]
-  });
-  body.append(header, main);
-  return { header, main, image, button };
-}
+const parse = doc => JSON.parse(JSON.stringify(doc));
 
-/* ----------------------------------------------------------- core tests -- */
+/* ------------------------------------------------------------- the model - */
 
-test('Three wireframe levels are offered with plain-language descriptions', () => {
+test('Three wireframe levels exist with plain-language descriptions', () => {
   const { Core } = harness();
-  assert.deepEqual(Array.from(Core.LEVELS.map(level => level.id)), ['low', 'medium', 'high']);
+  assert.deepEqual(Array.from(Core.LEVELS, level => level.id), ['low', 'medium', 'high']);
   for (const level of Core.LEVELS) {
     assert.ok(level.label.length > 0 && level.title.length > 0 && level.description.length > 12, level.id);
   }
   assert.equal(Core.normalizeOptions({}).level, 'medium');
   assert.equal(Core.normalizeOptions({ level: 'ultra' }).level, 'medium');
-  assert.equal(Core.normalizeOptions({ area: 'viewport' }).area, 'viewport');
-  assert.equal(Core.normalizeOptions({ area: 'full' }).area, 'page');
+  assert.deepEqual({ ...Core.normalizeSettings({ on: true, level: 'high' }) }, { on: true, level: 'high' });
+  assert.deepEqual({ ...Core.normalizeSettings({ on: 'yes', level: 'nope' }) }, { on: false, level: 'medium' });
+  assert.deepEqual({ ...Core.normalizeSettings(null) }, { on: false, level: 'medium' });
 });
 
 test('Colours are parsed from every serialisation Chrome produces', () => {
@@ -286,499 +267,396 @@ test('Colours are parsed from every serialisation Chrome produces', () => {
   assert.equal(Core.parseColor(null), null);
 });
 
-test('Tone mapping keeps light pages light and dark sections darker', () => {
+test('Tone mapping keeps light surfaces light and enforces readable text', () => {
   const { Core } = harness();
-  assert.equal(Core.fillTone(Core.parseColor('rgb(255, 255, 255)'), 'high'), null);
+  assert.match(Core.fillTone(Core.parseColor('rgb(255, 255, 255)'), 'high'), /^#f[a-f0-9]{5}$/, 'near-white keeps the lightest tone');
   assert.equal(Core.fillTone(Core.parseColor('rgba(0, 0, 0, 0)'), 'high'), null);
   const dark = Core.fillTone(Core.parseColor('rgb(12, 12, 12)'), 'high');
   const mid = Core.fillTone(Core.parseColor('rgb(120, 120, 120)'), 'high');
   assert.ok(dark && mid && dark < mid, `${dark} < ${mid}`);
-  const lightText = Core.textTone(Core.parseColor('rgb(20, 20, 20)'), '#ffffff', 'high');
-  const darkText = Core.textTone(Core.parseColor('rgb(240, 240, 240)'), '#2b2b2b', 'high');
-  assert.ok(Core.contrast(Core.parseColor(lightText), Core.parseColor('#ffffff')) >= 3);
-  assert.ok(Core.contrast(Core.parseColor(darkText), Core.parseColor('#2b2b2b')) >= 3);
+  const onPaper = Core.textTone(Core.parseColor('rgb(240, 240, 240)'), '#ffffff', 'high');
+  assert.ok(Core.contrast(Core.parseColor(onPaper), Core.parseColor('#ffffff')) >= 3);
+  const onDark = Core.textTone(Core.parseColor('rgb(20, 20, 20)'), '#2b2b2b', 'high');
+  assert.ok(Core.contrast(Core.parseColor(onDark), Core.parseColor('#2b2b2b')) >= 3);
 });
 
-test('A page without layers is refused instead of producing an empty copy', () => {
+test('A capture that is not a version-2 snapshot is refused, not guessed', () => {
   const { Core } = harness();
-  assert.throws(() => Core.validatePage(null), /no scanned page/);
-  assert.throws(() => Core.validatePage({ area: { width: 0, height: 0 } }), /capture area/);
-  assert.throws(() => Core.validatePage({ area: { width: 10, height: 10 }, nodes: null }), /no layers/);
-  assert.throws(() => Core.validatePage({ area: { width: 9999, height: 10 }, nodes: [] }), /larger/);
+  assert.throws(() => Core.transformDocument(null), /no capture/);
+  assert.throws(() => Core.transformDocument({ version: 1, root: { nodeType: 1 } }), /version|cannot be rebuilt/);
+  assert.throws(() => Core.transformDocument({ version: 2, root: { nodeType: 3 } }), /cannot be rebuilt/);
+  assert.throws(() => Core.transformDocument({ version: 2, root: { nodeType: 1, rect: { width: 0, height: 0 } } }), /no layout/);
 });
 
-test('Nested pages keep relative geometry and layer names stay unique', () => {
-  const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 800, height: 600 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 800, h: 600, name: 'Section', painted: true },
-      { kind: 'box', parent: 0, x: 40, y: 40, w: 720, h: 200, name: 'Card', painted: true },
-      { kind: 'box', parent: 0, x: 40, y: 280, w: 720, h: 200, name: 'Card', painted: true }
-    ]
-  }, { level: 'medium' });
-  assert.equal(plan.root.children.length, 1);
-  const section = plan.root.children[0];
-  assert.deepEqual({ x: section.x, y: section.y, w: section.w, h: section.h }, { x: 0, y: 0, w: 800, h: 600 });
-  assert.equal(section.children.length, 2);
-  assert.deepEqual({ x: section.children[0].x, y: section.children[0].y }, { x: 40, y: 40 });
-  assert.deepEqual({ x: section.children[1].x, y: section.children[1].y }, { x: 40, y: 280 });
-  assert.deepEqual(Array.from(section.children, block => block.name), ['Card', 'Card 2']);
-  assert.equal(plan.stats.blocks, 3);
-});
+/* -------------------------------------------------------------- levels --- */
 
-test('Content outside a clipping parent is dropped, not floated outside it', () => {
+test('Low keeps structure: text becomes bars and nothing is editable type', () => {
   const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 400, height: 400 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 400, h: 200, name: 'Scroller', painted: true, clip: true },
-      { kind: 'box', parent: 0, x: 0, y: 900, w: 400, h: 100, name: 'Hidden row', painted: true }
-    ]
-  }, { level: 'medium' });
-  assert.equal(plan.root.children.length, 1);
-  assert.equal(plan.root.children[0].children.length, 0);
-  assert.equal(plan.stats.skipped, 1);
-});
-
-test('Low keeps structure: text becomes bars, nothing editable is invented', () => {
-  const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 600, height: 400 },
-    nodes: [
-      { kind: 'text', parent: -1, x: 20, y: 20, w: 300, h: 48, text: 'A headline over two lines', name: 'Heading', color: 'rgb(0, 0, 0)', font: { size: 24, weight: 700, lineHeight: 24 } }
-    ]
-  }, { level: 'low' });
-  const block = plan.root.children[0];
-  assert.equal(block.text, null);
-  assert.equal(block.bars.length, 2);
-  for (const bar of block.bars) {
-    assert.ok(bar.w <= block.w && bar.h >= 4 && bar.color.startsWith('#'));
+  const doc = snapshot();
+  const before = parse(doc);
+  const { document: result, stats, level } = Core.transformDocument(doc, { level: 'low' });
+  assert.equal(level, 'low');
+  const heading = result.root.childNodes.find(node => node.id === 'heading');
+  assert.equal(heading.childNodes.length, 2, 'two lines -> two bars');
+  assert.equal(heading.childNodes.every(node => node.nodeType === 1), true);
+  assert.equal(heading.childNodes.some(node => node.text != null), false);
+  for (const bar of heading.childNodes) {
+    assert.match(bar.styles.backgroundColor, /^#[0-9a-f]{6}$/);
+    assert.equal(bar.styles.borderRadius, '2px');
+    assert.ok(bar.rect.width <= before.root.childNodes.find(node => node.id === 'heading').rect.width);
   }
-  assert.equal(plan.stats.bars, 2);
-  assert.equal(plan.stats.textLayers, 1);
+  assert.ok(stats.bars >= 3, 'header text, heading lines and button label all became bars');
+  assert.equal(result.root.childNodes.some(node => node.id === 'heading' && node.childNodes.some(child => child.text)), false);
 });
 
-test('Medium uses real text in a neutral font and caps radii', () => {
+test('Medium uses real text in a neutral face and caps radii', () => {
   const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 600, height: 400 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 600, h: 200, name: 'Card', painted: true, radius: 40, background: 'rgb(245, 245, 245)' },
-      { kind: 'text', parent: 0, x: 20, y: 20, w: 200, h: 24, text: 'Card title', name: 'Heading · Card title', color: 'rgb(0, 0, 0)', font: { size: 22, weight: 700, lineHeight: 26, family: '"Brand Serif", Georgia, serif' } }
-    ]
-  }, { level: 'medium' });
-  const card = plan.root.children[0];
-  assert.equal(card.radius, 6);
-  const text = card.children[0].text;
-  assert.equal(text.value, 'Card title');
-  assert.equal(text.family, Core.NEUTRAL_FONT);
-  assert.equal(text.size, 22);
-  assert.equal(text.weight, 700);
+  const { document: result } = Core.transformDocument(snapshot(), { level: 'medium' });
+  const heading = result.root.childNodes.find(node => node.id === 'heading');
+  assert.equal(heading.childNodes[0].text, 'We make complicated products feel obvious.');
+  assert.equal(heading.styles.fontFamily, Core.NEUTRAL_FONT);
+  assert.equal(heading.styles.letterSpacing, 'normal');
+  const cta = result.root.childNodes.find(node => node.id === 'cta');
+  assert.equal(cta.styles.borderTopLeftRadius, '6px');
+  assert.equal(cta.styles.boxShadow, undefined, 'shadows are dropped at medium');
+  assert.match(cta.styles.backgroundColor, /^#[0-9a-f]{6}$/);
 });
 
-test('High keeps the page font, radii and a greyed-out shadow', () => {
+test('High keeps the page type stack, radii and a greyscaled shadow', () => {
   const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 600, height: 400 },
-    nodes: [
-      {
-        kind: 'box', parent: -1, x: 0, y: 0, w: 600, h: 200, name: 'Card', painted: true, radius: 24,
-        shadow: 'rgba(13, 153, 255, 0.4) 0px 8px 24px 0px', background: 'rgb(255, 255, 255)'
-      },
-      { kind: 'text', parent: 0, x: 20, y: 20, w: 200, h: 24, text: 'Card title', name: 'Heading · Card title', color: 'rgb(20, 20, 20)', font: { size: 22, weight: 600, lineHeight: 26, family: '"Brand Serif", Georgia, serif', spacing: 0.5 } }
-    ]
-  }, { level: 'high' });
-  const card = plan.root.children[0];
-  assert.equal(card.radius, 24);
-  assert.match(card.shadow, /rgba\(0, 0, 0, 0\.12\) 0px 8px 24px 0px/);
-  const text = card.children[0].text;
-  assert.match(text.family, /Brand Serif/);
-  assert.equal(text.spacing, 0.5);
+  const { document: result } = Core.transformDocument(snapshot(), { level: 'high' });
+  const heading = result.root.childNodes.find(node => node.id === 'heading');
+  assert.match(heading.styles.fontFamily, /Brand Serif/);
+  assert.notEqual(heading.styles.letterSpacing, 'normal');
+  const cta = result.root.childNodes.find(node => node.id === 'cta');
+  assert.equal(cta.styles.borderTopLeftRadius, '10px');
+  assert.match(cta.styles.boxShadow, /rgba\(0, 0, 0, 0\.12\) 0px 8px 24px 0px/);
+  const header = result.root.childNodes.find(node => node.id === 'header');
+  assert.match(header.styles.backgroundColor, /^#[0-9a-f]{6}$/);
+  assert.notEqual(header.styles.backgroundColor, 'rgb(250, 250, 250)');
 });
 
-test('Media becomes a labelled placeholder, never an image', () => {
+/* ------------------------------------------------------------- assets ---- */
+
+test('A wireframe carries no page assets, image URLs or inline styles', () => {
   const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 600, height: 400 },
-    nodes: [
-      { kind: 'media', parent: -1, x: 20, y: 20, w: 320, h: 200, name: 'Image', label: 'Dashboard preview', radius: 12 },
-      { kind: 'media', parent: -1, x: 400, y: 20, w: 24, h: 24, name: 'Icon', label: 'Icon', icon: true },
-      { kind: 'media', parent: -1, x: 400, y: 80, w: 40, h: 40, name: 'Avatar', label: 'Avatar', avatar: true }
-    ]
-  }, { level: 'medium' });
-  const [image, icon, avatar] = plan.root.children;
-  assert.equal(image.marks, 'plus');
-  assert.equal(image.label, 'Dashboard preview');
-  assert.equal(icon.marks, null);
-  assert.equal(icon.label, null);
-  assert.equal(avatar.radius, 9999);
-  assert.equal(avatar.label, null);
-  assert.equal(plan.stats.placeholders, 3);
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(snapshot(), { level });
+    assert.equal(Object.keys(result.assets).length, 0, `${level}: no assets`);
+    const serialized = JSON.stringify(result);
+    assert.doesNotMatch(serialized, /https?:\/\/fixture\.test/, `${level}: no page URL survives`);
+    assert.doesNotMatch(serialized, /base64,AAAA/, `${level}: no embedded image`);
+    if (level === 'high') assert.match(serialized, /Brand Serif/, 'high keeps the page type stack');
+    else assert.doesNotMatch(serialized, /Brand Serif/, `${level}: neutral type only`);
+  }
 });
 
-test('A plan is deterministic and reports its own limits', () => {
+test('Images become labelled vector placeholders at every level', () => {
   const { Core } = harness();
-  const page = {
-    area: { width: 800, height: 600 },
-    nodes: Array.from({ length: 60 }, (_, index) => ({
-      kind: 'box', parent: -1, x: index, y: index, w: 40, h: 40, name: 'Cell', painted: true
-    }))
-  };
-  const first = Core.buildPlan(page, { level: 'medium' });
-  const second = Core.buildPlan(page, { level: 'medium' });
-  assert.deepEqual(JSON.parse(JSON.stringify(first)), JSON.parse(JSON.stringify(second)));
-  assert.equal(first.stats.blocks, 60);
-  const summary = Core.summarize(first);
-  assert.equal(summary.blocks, 60);
-  assert.equal(summary.level, 'medium');
-  assert.equal(summary.width, 800);
-  assert.equal(summary.truncated, false);
+  const medium = Core.transformDocument(snapshot(), { level: 'medium' }).document;
+  const image = medium.root.childNodes.find(node => node.id === 'hero-image');
+  assert.equal(image.childNodes.length, 1);
+  assert.equal(image.childNodes[0].nodeType, 3);
+  assert.equal(image.childNodes[0].text, 'Dashboard preview', 'alt text becomes the label');
+  assert.equal(image.placeholderUrl, undefined);
+  assert.equal(image.attributes.src, undefined);
+  assert.equal(image.attributes.currentsrc, undefined);
+  assert.equal(image.attributes.alt, 'Dashboard preview', 'alt is kept for naming');
+  assert.match(image.styles.backgroundColor, /^#[0-9a-f]{6}$/);
+
+  const low = Core.transformDocument(snapshot(), { level: 'low' }).document;
+  const lowImage = low.root.childNodes.find(node => node.id === 'hero-image');
+  assert.equal(lowImage.childNodes.length, 0, 'low keeps a plain box');
+  assert.equal(lowImage.styles.borderTopLeftRadius, '4px');
 });
 
-test('Links keep an underline and gradient surfaces keep a light tone', () => {
+test('Inline SVG artwork collapses to a single icon box', () => {
   const { Core } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 600, height: 400 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 600, h: 200, name: 'Hero', gradient: true, painted: true },
-      { kind: 'text', parent: 0, x: 20, y: 20, w: 160, h: 24, text: 'Read the story', name: 'Text', link: true, color: 'rgb(13, 153, 255)', font: { size: 14, weight: 500, lineHeight: 24, decoration: 'none' } }
-    ]
-  }, { level: 'medium' });
-  const hero = plan.root.children[0];
-  assert.equal(hero.fill, '#f3f3f3');
-  assert.equal(hero.children[0].text.decoration, 'underline');
-  const plain = Core.buildPlan({
-    area: { width: 200, height: 100 },
-    nodes: [{ kind: 'text', parent: -1, x: 0, y: 0, w: 120, h: 20, text: 'Body', name: 'Text', font: { size: 14, weight: 400, lineHeight: 20, decoration: 'none' } }]
-  }, { level: 'medium' });
-  assert.equal(plain.root.children[0].text.decoration, 'none');
+  const { document: result } = Core.transformDocument(snapshot(), { level: 'high' });
+  const icon = result.root.childNodes.find(node => node.id === 'icon');
+  assert.equal(icon.childNodes.length, 0);
+  assert.equal(icon.styles.borderTopLeftRadius, '4px', 'the artwork is now a rounded box');
+  assert.equal(icon.styles.borderTopWidth, '1px');
+  assert.equal(result.root.childNodes.some(node => node.tag === 'PATH'), false);
 });
 
-/* -------------------------------------------------------------- scanning - */
+/* -------------------------------------------------------- determinism ---- */
 
-test('Scanning measures the page without mutating it', () => {
-  const document = new FakeDocument();
-  fixturePage(document);
-  const { Wireframe } = harness({ document });
-  const before = JSON.stringify(document.body.childNodes.map(node => node.tagName || node.nodeType));
-  const page = Wireframe.scanPage({ area: 'page' });
-  assert.equal(page.mode, 'page');
-  assert.equal(page.area.width, 1200);
-  assert.equal(page.area.height, 2000);
-  assert.ok(page.nodes.some(node => node.kind === 'text' && node.text.includes('Welcome')));
-  assert.ok(page.nodes.some(node => node.kind === 'media' && node.label === 'Dashboard preview'));
-  assert.ok(page.nodes.some(node => node.kind === 'control'));
-  assert.ok(page.nodes.every(node => Number.isFinite(node.x) && Number.isFinite(node.y)));
-  assert.equal(JSON.stringify(document.body.childNodes.map(node => node.tagName || node.nodeType)), before);
+test('The same capture and level always produce the same wireframe', () => {
+  const { Core } = harness();
+  const first = Core.transformDocument(snapshot(), { level: 'medium' }).document;
+  const second = Core.transformDocument(snapshot(), { level: 'medium' }).document;
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+  assert.deepEqual(parse(first.wireframe), { level: 'medium' });
 });
 
-test('Viewport scanning clips to the visible area', () => {
-  const document = new FakeDocument();
-  fixturePage(document);
-  document.documentElement.clientWidth = 1200;
-  const { Wireframe, context } = harness({ document });
-  context.window.innerWidth = 1200;
-  context.window.innerHeight = 300;
-  const page = Wireframe.scanPage({ area: 'viewport' });
-  assert.equal(page.mode, 'viewport');
-  assert.equal(page.area.height, 300);
-  assert.ok(page.nodes.every(node => node.y < 300));
+test('Very large captures stop at the node budget and say so', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  const children = [];
+  for (let index = 0; index < Core.LIMITS.nodes + 50; index++) {
+    children.push({ nodeType: 1, id: `n-${index}`, tag: 'DIV', attributes: {}, styles: {}, rect: { x: 0, y: index, width: 40, height: 20 }, childNodes: [] });
+  }
+  doc.root.childNodes = children;
+  const result = Core.transformDocument(doc, { level: 'low' });
+  assert.equal(result.stats.truncated, true);
+  assert.ok(result.document.root.childNodes.length <= Core.LIMITS.nodes);
 });
 
-test('Scrolled-out content stays out of the board even when the scroller is not kept', () => {
-  const document = new FakeDocument();
-  // A wrapper exactly covering the page is dropped, but its overflow must still
-  // clip: the child below the fold is not visible and must not become a layer.
-  const hidden = pageElement(document, 'div', { rect: [0, 0, 1200, 400], text: null });
-  const scroller = pageElement(document, 'div', {
-    rect: [0, 0, 1200, 400],
-    computed: { overflowY: 'auto', overflow: 'auto' },
-    children: [
-      pageElement(document, 'p', { rect: [0, 420, 400, 24], text: 'Row below the fold' })
-    ]
-  });
-  document.body.append(scroller, hidden);
-  const { Wireframe } = harness({ document });
-  const page = Wireframe.scanPage({ area: 'page' });
-  assert.equal(page.nodes.some(node => node.text === 'Row below the fold'), false);
-  assert.equal(page.nodes.filter(node => node.kind === 'text').length, 0);
+/* -------------------------------------------------------------- settings - */
+
+test('The setting is off by default and persists through chrome.storage', async () => {
+  const { Wireframe, stored, sets } = harness();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(Wireframe.settings.on, false);
+  assert.equal(Wireframe.settings.level, 'medium');
+  assert.equal(sets.length, 0, 'nothing is written until the user chooses');
+
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  assert.ok(section, 'section mounted');
+  const checkbox = section.querySelector('input');
+  checkbox.checked = true;
+  checkbox.dispatch('change');
+  assert.equal(env.Wireframe.settings.on, true);
+  assert.equal(env.stored.pc_wireframe_v1.on, true);
+  assert.equal(env.sets.at(-1).pc_wireframe_v1.on, true);
 });
 
-test('Fixed bars are anchored to the top of a full-page wireframe', () => {
-  const document = new FakeDocument();
-  document.body.append(pageElement(document, 'nav', {
-    rect: [0, 640, 1200, 60],
-    computed: { position: 'fixed', backgroundColor: 'rgb(30, 30, 30)' }
-  }));
-  const { Wireframe, context } = harness({ document });
-  context.window.scrollY = 640;
-  const scrolled = Wireframe.scanPage({ area: 'page' });
-  assert.equal(scrolled.nodes[0].y, 0);
-  const viewport = Wireframe.scanPage({ area: 'viewport' });
-  assert.equal(viewport.nodes[0].y, 640);
-});
+/* ---------------------------------------------------------- popover UI --- */
 
-test('Open shadow roots are scanned like ordinary children', () => {
-  const document = new FakeDocument();
-  const host = pageElement(document, 'div', { rect: [0, 0, 600, 200] });
+function buildPopoverHost(document) {
+  const host = document.createElement('div');
+  host.id = '__pc_viewports__';
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.append(pageElement(document, 'p', { rect: [10, 10, 300, 24], text: 'Inside the shadow root' }));
-  document.body.append(host);
-  const { Wireframe } = harness({ document });
-  const page = Wireframe.scanPage({ area: 'page' });
-  assert.ok(page.nodes.some(node => node.text === 'Inside the shadow root'));
-});
-
-test('A page above the block budget reports itself as truncated', () => {
-  const { Core } = harness();
-  const nodes = Array.from({ length: Core.LIMITS.blocks + 40 }, (_, index) => ({
-    kind: 'box', parent: -1, x: index % 100, y: Math.floor(index / 100), w: 20, h: 20, name: 'Cell', painted: true
-  }));
-  const plan = Core.buildPlan({ area: { width: 800, height: 600 }, nodes }, { level: 'low' });
-  assert.equal(plan.stats.blocks, Core.LIMITS.blocks);
-  assert.equal(plan.stats.truncated, true);
-  assert.equal(Core.summarize(plan).truncated, true);
-});
-
-/* -------------------------------------------------------------- render --- */
-
-test('Rendering builds absolutely positioned, uniquely named layers', () => {
-  const { Core, context } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 640, height: 480 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 640, h: 96, name: 'Header', painted: true, background: 'rgb(245, 245, 245)' },
-      { kind: 'box', parent: 0, x: 24, y: 24, w: 200, h: 48, name: 'Card', painted: true, radius: 8 },
-      { kind: 'text', parent: 1, x: 32, y: 36, w: 120, h: 24, text: 'Hello', name: 'Heading', color: 'rgb(0, 0, 0)', font: { size: 16, weight: 600, lineHeight: 24 } },
-      { kind: 'media', parent: 0, x: 400, y: 24, w: 200, h: 120, name: 'Image', label: 'Chart' }
-    ]
-  }, { level: 'high' });
-  const board = context.PageCaptureWireframe.renderPlan(plan, context.document);
-  assert.equal(board.style.width, '640px');
-  assert.equal(board.style.height, '480px');
-  assert.equal(board.children.length, 1);
-  const header = board.children[0];
-  assert.equal(header.id, 'header');
-  assert.equal(header.style.position, 'absolute');
-  const card = header.children[0];
-  const text = card.children[0];
-  assert.equal(text.style.position, 'absolute');
-  assert.equal(text.style.left, '8px');
-  assert.equal(text.style.top, '12px');
-  assert.equal(text.textContent, 'Hello');
-  assert.equal(text.style.fontWeight, '600');
-  const media = header.children[1];
-  assert.equal(media.children.length, 3); // two placeholder marks + label
-  assert.equal(media.children[2].textContent, 'Chart');
-  const ids = [board, ...board.children, ...header.children, ...card.children, ...text.children, ...media.children].map(node => node.id).filter(Boolean);
-  assert.equal(new Set(ids).size, ids.length);
-});
-
-test('Low rendering draws bars instead of text layers', () => {
-  const { Core, context } = harness();
-  const plan = Core.buildPlan({
-    area: { width: 400, height: 200 },
-    nodes: [{ kind: 'text', parent: -1, x: 10, y: 10, w: 200, h: 48, text: 'Two lines of copy', name: 'Text', font: { size: 16, weight: 400, lineHeight: 24 } }]
-  }, { level: 'low' });
-  const board = context.PageCaptureWireframe.renderPlan(plan, context.document);
-  const block = board.children[0];
-  assert.equal(block.textContent, '');
-  assert.equal(block.children.length, 2);
-  assert.ok(block.children.every(bar => /^#/.test(bar.style.backgroundColor)));
-});
-
-/* ---------------------------------------------------------------- copy --- */
-
-function fakeHelpers(overrides = {}) {
-  const calls = [];
-  return {
-    calls,
-    capture: async (element, options) => {
-      calls.push(['capture', element, options]);
-      if (overrides.capture) return overrides.capture(element, options);
-      return {
-        document: {
-          version: 2, nodeType: 1,
-          root: { nodeType: 1, rect: { x: 0, y: 0, width: parseFloat(element.style.width), height: parseFloat(element.style.height) } },
-          assets: new Map(), documentTitle: 'fixture'
-        }
-      };
-    },
-    serialize: async snapshot => { calls.push(['serialize']); return JSON.stringify(snapshot); },
-    encode: async text => { calls.push(['encode']); return Buffer.from(String(text), 'utf8').toString('base64'); }
-  };
+  const box = document.createElement('div');
+  box.className = 'box';
+  const heading = document.createElement('h4');
+  heading.textContent = 'Viewports';
+  box.append(heading);
+  shadow.append(box);
+  document.documentElement.append(host);
+  return host;
 }
 
-test('Copying writes one rich clipboard payload and cleans up its frame', async () => {
-  const { Core, Wireframe, context, writes } = harness();
-  const mount = context.document.createElement('div');
-  context.document.body.append(mount);
-  const plan = Core.buildPlan({
-    area: { width: 800, height: 600 },
-    nodes: [
-      { kind: 'box', parent: -1, x: 0, y: 0, w: 800, h: 120, name: 'Header', painted: true },
-      { kind: 'text', parent: 0, x: 24, y: 24, w: 200, h: 32, text: 'Wireframe copy', name: 'Heading', color: 'rgb(0, 0, 0)', font: { size: 20, weight: 600, lineHeight: 32 } }
-    ]
-  }, { level: 'medium' });
-  const helpers = fakeHelpers();
-  const result = await Wireframe.copyPlan(plan, helpers, { mount, signal: new AbortController().signal });
-  assert.equal(result.summary.blocks, 2);
-  assert.equal(writes.length, 1);
-  const item = writes[0][0];
-  assert.deepEqual(item.types, ['text/html']);
-  const html = await item.formats['text/html'].text();
-  assert.match(html, /\(figh2d\)/);
-  assert.match(html, /\(figmeta\)/);
-  assert.doesNotMatch(html, /https?:\/\/[^\s"]+\.(?:png|jpg|svg)/i);
-  const encoded = /\(figh2d\)([^()]+)\(\/figh2d\)/.exec(html)[1];
-  const decoded = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
-  assert.match(decoded[0].documentTitle, /Wireframe \(medium\)/);
-  assert.equal(decoded[0].root.rect.width, 800);
-  assert.equal(mount.children.length, 0, 'temporary frame removed');
-  const captureOptions = helpers.calls.find(call => call[0] === 'capture')[2];
-  assert.equal(captureOptions.skipRemoteAssetSerialization, true);
-  assert.equal(captureOptions.assertLayoutValid, false);
+test('Wireframe appears in the Viewports popover as a checkbox with three levels', () => {
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.fireMutation([host]);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  assert.ok(section, 'the option is injected into the existing popover');
+  assert.equal(section.getAttribute('role'), 'group');
+  assert.equal(section.getAttribute('aria-label'), 'Wireframe');
+  const checkbox = section.querySelector('input');
+  assert.equal(checkbox.type, 'checkbox');
+  assert.equal(checkbox.getAttribute('aria-label'), 'Copy as wireframe');
+  assert.equal(checkbox.checked, false);
+  const buttons = section.querySelectorAll('button');
+  assert.deepEqual(Array.from(buttons, button => button.dataset.level), ['low', 'medium', 'high']);
+  assert.equal(buttons.every(button => button.disabled), true, 'levels are disabled while off');
+  assert.match(section.textContent, /Capture design/);
 });
 
-test('A failed clipboard write reports an error and still cleans up', async () => {
-  const { Core, Wireframe, context } = harness({ write: async () => { throw new Error('denied'); } });
-  const mount = context.document.createElement('div');
-  context.document.body.append(mount);
-  const plan = Core.buildPlan({
-    area: { width: 400, height: 300 },
-    nodes: [{ kind: 'box', parent: -1, x: 0, y: 0, w: 400, h: 40, name: 'Bar', painted: true }]
-  }, { level: 'medium' });
-  await assert.rejects(Wireframe.copyPlan(plan, fakeHelpers(), { mount }), /denied/);
-  assert.equal(mount.children.length, 0);
+test('Choosing a level turns the setting on and updates the hint', () => {
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  const [low, medium, high] = section.querySelectorAll('button');
+  high.dispatch('click');
+  assert.equal(env.Wireframe.settings.on, true);
+  assert.equal(env.Wireframe.settings.level, 'high');
+  assert.equal(high.getAttribute('aria-pressed'), 'true');
+  assert.equal(low.getAttribute('aria-pressed'), 'false');
+  assert.equal(section.querySelector('input').checked, true);
+  assert.match(section.textContent, /Detail/);
+  assert.equal(env.stored.pc_wireframe_v1.level, 'high');
+  assert.equal(section.querySelectorAll('button').every(button => button.disabled), false);
 });
 
-test('A board with unexpected assets is refused before it reaches the clipboard', async () => {
-  const { Core, Wireframe, context, writes } = harness();
-  const mount = context.document.createElement('div');
-  context.document.body.append(mount);
-  const plan = Core.buildPlan({
-    area: { width: 400, height: 300 },
-    nodes: [{ kind: 'box', parent: -1, x: 0, y: 0, w: 400, h: 40, name: 'Bar', painted: true }]
-  }, { level: 'medium' });
-  const helpers = fakeHelpers({
-    capture: () => ({ document: { version: 2, nodeType: 1, root: { nodeType: 1, rect: { width: 400, height: 40 } }, assets: new Map([['a', 'b']]) } })
+test('The popover is decorated once, even after repeated opens', () => {
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  env.Wireframe.decoratePopover(host);
+  env.fireMutation([host, host]);
+  const sections = host.shadowRoot.querySelectorAll('[data-wireframe-section]');
+  assert.equal(sections.length, 1);
+  assert.equal(host.shadowRoot.querySelectorAll('[data-wireframe-style]').length, 1);
+});
+
+test('A stored choice is restored when the popover opens', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'low' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  assert.equal(section.querySelector('input').checked, true);
+  assert.equal(section.querySelectorAll('button')[0].getAttribute('aria-pressed'), 'true');
+  assert.equal(section.getAttribute('data-state'), 'on');
+});
+
+/* ------------------------------------------------------------ copy hook -- */
+
+test('Installing the hook keeps every other PageCaptureSafety function', () => {
+  const env = harness();
+  assert.equal(env.Safety.__wireframe, true);
+  assert.equal(typeof env.Safety.sanitizeDocument, 'function');
+  assert.equal(typeof env.Safety.createSession, 'function');
+  assert.deepEqual(env.Safety.limits, env.Safety.limits);
+  assert.equal(Object.isFrozen(env.Safety), true);
+  assert.equal(env.Wireframe.install(), true, 'installing twice is a no-op');
+});
+
+test('While off, copying is completely untouched', async () => {
+  const env = harness();
+  const records = [{ type: 'snapshot', id: 'a', h2dJson: JSON.stringify(snapshot()) }];
+  await env.Safety.prepareClipboard(records, {});
+  assert.equal(env.safetyCalls.length, 1);
+  assert.equal(env.safetyCalls[0].records[0].h2dJson, records[0].h2dJson);
+  assert.deepEqual({ ...env.Safety.imageAssetSummary(records) }, { total: 3, included: 2, notEmbedded: 1 });
+});
+
+test('While on, the same copy action writes wireframe layers', async () => {
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  host.shadowRoot.querySelector('[data-wireframe-section]').querySelectorAll('button')[1].dispatch('click');
+  assert.equal(env.Wireframe.settings.on, true);
+
+  const original = { type: 'snapshot', id: 'a', previewUrl: 'data:image/png;base64,ZZ', h2dJson: JSON.stringify(snapshot()) };
+  await env.Safety.prepareClipboard([original], { signal: undefined });
+  const transformed = env.safetyCalls.at(-1).records[0];
+  const doc = JSON.parse(transformed.h2dJson);
+  assert.equal(doc.wireframe.level, 'medium');
+  assert.equal(Object.keys(doc.assets).length, 0);
+  assert.equal(transformed.previewUrl, 'data:image/png;base64,ZZ', 'the tray record is preserved');
+  assert.equal(transformed.id, 'a');
+  assert.equal(original.h2dJson.includes('fixture.test'), true, 'the stored capture is not mutated');
+  assert.equal(env.Wireframe.lastTransformed(), 1);
+});
+
+test('Every checked width becomes its own wireframe in one copy', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'high' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const records = [
+    { type: 'snapshot', id: '1600', h2dJson: JSON.stringify(snapshot()) },
+    { type: 'snapshot', id: '393', h2dJson: JSON.stringify(snapshot()) }
+  ];
+  await env.Safety.prepareClipboard(records, {});
+  const written = env.safetyCalls.at(-1).records;
+  assert.equal(written.length, 2);
+  assert.deepEqual(Array.from(written, record => JSON.parse(record.h2dJson).wireframe.level), ['high', 'high']);
+});
+
+test('Code captures pass through unchanged and never fail the copy', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'low' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const mhtml = { type: 'mhtml', id: 'code', mhtml: { html: '<p>raw</p>' } };
+  const broken = { type: 'snapshot', id: 'broken', h2dJson: '{not json' };
+  await env.Safety.prepareClipboard([mhtml, broken], {});
+  const written = env.safetyCalls.at(-1).records;
+  assert.equal(written[0], mhtml);
+  assert.equal(written[1], broken, 'an unreadable record is copied as-is');
+});
+
+test('A wireframe copy does not claim to have embedded page images', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'medium' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual({ ...env.Safety.imageAssetSummary([{ type: 'snapshot', h2dJson: JSON.stringify(snapshot()) }]) }, { total: 0, included: 0, notEmbedded: 0 });
+});
+
+test('The transform survives being applied twice (Copy all after a wireframe copy)', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'medium' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const once = env.Wireframe.transformRecords([{ type: 'snapshot', id: 'a', h2dJson: JSON.stringify(snapshot()) }]);
+  const twice = env.Wireframe.transformRecords(once);
+  const a = JSON.parse(once[0].h2dJson), b = JSON.parse(twice[0].h2dJson);
+  assert.equal(a.root.rect.width, b.root.rect.width);
+  assert.equal(JSON.stringify(a).length, JSON.stringify(b).length);
+  assert.equal(Object.keys(b.assets).length, 0);
+});
+
+/* -------------------------------------------------- real copy pipeline --- */
+
+// Exercises the shipped capture-safety.js, so the wrapper is proven against the
+// real encoder rather than a stub: the clipboard HTML must decode to a version-2
+// wireframe with no assets and no page URLs.
+async function realPipeline(settings) {
+  const stored = { pc_wireframe_v1: settings };
+  const chrome = { storage: { local: { async get(key) { return { [key]: stored[key] }; }, async set(value) { Object.assign(stored, value); } } } };
+  const document = {
+    documentElement: { appendChild() {} }, getElementById() { return null; },
+    createElement() { return { style: {}, setAttribute() {}, append() {}, addEventListener() {} }; }
+  };
+  const context = vm.createContext({
+    chrome, document, Blob, TextEncoder, crypto, AbortSignal, AbortController, DOMException,
+    setTimeout, clearTimeout, console, MutationObserver: class { observe() {} disconnect() {} }
   });
-  await assert.rejects(Wireframe.copyPlan(plan, helpers, { mount }), /unexpected assets/);
-  assert.equal(writes.length, 0);
-  assert.equal(mount.children.length, 0);
-});
-
-test('Cancelling preparation aborts the copy without writing', async () => {
-  const { Core, Wireframe, context, writes } = harness();
-  const mount = context.document.createElement('div');
-  context.document.body.append(mount);
-  const plan = Core.buildPlan({
-    area: { width: 400, height: 300 },
-    nodes: [{ kind: 'box', parent: -1, x: 0, y: 0, w: 400, h: 40, name: 'Bar', painted: true }]
-  }, { level: 'medium' });
-  const abort = new AbortController();
-  const pending = Wireframe.copyPlan(plan, fakeHelpers(), { mount, signal: abort.signal });
-  abort.abort();
-  await assert.rejects(pending, error => error.name === 'AbortError' || /Cancel/.test(error.message));
-  assert.equal(writes.length, 0);
-});
-
-/* ---------------------------------------------------------------- panel -- */
-
-function fakeController() {
-  const lifecycle = new AbortController();
-  const messages = [];
-  return {
-    lifecycleAbort: lifecycle, messages,
-    config: { onEvent: null },
-    toolbarEl: { style: {} },
-    focus() {},
-    showTransientMessage(message) { messages.push(message); }
-  };
+  context.globalThis = context;
+  for (const file of ['js/capture-safety.js', 'js/wireframe-core.js', 'js/wireframe.js']) {
+    vm.runInContext(read(file), context);
+  }
+  await new Promise(resolve => setTimeout(resolve, 10));
+  return context;
 }
 
-test('The panel only attaches with working capture helpers', () => {
-  const { Wireframe } = harness();
-  const controller = fakeController();
-  Wireframe.attach(controller, {});
-  Wireframe.attach(controller, { capture() {}, serialize() {} });
-  Wireframe.openPanel();
-  assert.equal(controller.lifecycleAbort.signal.aborted, false);
-  assert.equal(Wireframe.openPanel(), undefined);
+test('The real clipboard pipeline copies a wireframe that contains no page URLs', async () => {
+  const context = await realPipeline({ on: true, level: 'medium' });
+  const doc = snapshot();
+  const records = [{ type: 'snapshot', id: 'r1', previewUrl: '', h2dJson: JSON.stringify(doc) }];
+  const encode = async text => Buffer.from(text, 'utf8').toString('base64');
+  const blob = await context.PageCaptureSafety.prepareClipboard(records, { encode, signal: new AbortController().signal });
+  const html = await blob.text();
+  const payload = /<span data-h2d="<!--\(figh2d\)([^()]+)\(\/figh2d\)-->"><\/span>/.exec(html)[1];
+  const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+  assert.equal(decoded[0].version, 2);
+  assert.equal(decoded[0].type, 'snapshot');
+  assert.equal(decoded[0].wireframe.level, 'medium');
+  assert.equal(Object.keys(decoded[0].assets).length, 0);
+  assert.equal(html.includes('fixture.test'), false, 'no page URL in the clipboard payload');
+  assert.equal(html.includes('base64,AAAA'), false, 'no image data in the clipboard payload');
+  assert.doesNotMatch(html, /Brand Serif/, 'medium uses a neutral face');
 });
 
-test('Opening the panel scans the page, previews it and copies from the button', async () => {
-  const document = new FakeDocument();
-  fixturePage(document);
-  const { Wireframe, context, writes } = harness({ document });
-  const controller = fakeController();
-  Wireframe.attach(controller, fakeHelpers());
-  Wireframe.openPanel();
-  await new Promise(resolve => setTimeout(resolve, 60));
-
-  const host = document.body.children.find(node => node.id === '__page_capture_wireframe__');
-  assert.ok(host, 'panel host mounted');
-  assert.equal(host.getAttribute('data-h2d-ignore'), 'true');
-  const shadow = host._shadow;
-  const dialog = shadow.children.find(node => node.tagName === 'DIALOG');
-  assert.ok(dialog?.open, 'dialog is modal');
-  assert.equal(dialog.getAttribute('aria-busy'), 'false');
-  const preview = shadow.querySelector('[data-wireframe-frame]');
-  assert.ok(preview, 'preview frame rendered');
-  const copy = shadow.querySelector('[data-focus="copy"]');
-  assert.equal(copy.getAttribute('disabled') ?? null, null);
-  copy.click();
-  await new Promise(resolve => setTimeout(resolve, 80));
-  assert.equal(writes.length, 1);
-  assert.match(controller.messages.join(' '), /Wireframe copied/);
-  assert.equal(shadow.querySelector('[data-wireframe-frame]') !== null, true, 'preview stays mounted');
-
-  controller.lifecycleAbort.abort();
-  assert.equal(document.body.children.some(node => node.id === '__page_capture_wireframe__'), false);
+test('With the option off the very same call copies the untouched capture', async () => {
+  const context = await realPipeline({ on: false, level: 'high' });
+  const doc = snapshot();
+  const records = [{ type: 'snapshot', id: 'r1', previewUrl: '', h2dJson: JSON.stringify(doc) }];
+  const encode = async text => Buffer.from(text, 'utf8').toString('base64');
+  const blob = await context.PageCaptureSafety.prepareClipboard(records, { encode, signal: new AbortController().signal });
+  const html = await blob.text();
+  const payload = /<span data-h2d="<!--\(figh2d\)([^()]+)\(\/figh2d\)-->"><\/span>/.exec(html)[1];
+  const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'))[0];
+  assert.equal(Object.keys(decoded.assets).length, 1, 'images are still embedded when the option is off');
+  assert.equal(decoded.wireframe, undefined);
+  assert.match(JSON.stringify(decoded), /Brand Serif/);
 });
 
-test('The panel explains an unavailable rich clipboard instead of throwing', async () => {
-  const document = new FakeDocument();
-  fixturePage(document);
-  const { Wireframe, context } = harness({ document });
-  context.navigator.clipboard = {};
-  const controller = fakeController();
-  Wireframe.attach(controller, fakeHelpers());
-  Wireframe.openPanel();
-  await new Promise(resolve => setTimeout(resolve, 60));
-  const shadow = document.body.children.find(node => node.id === '__page_capture_wireframe__')._shadow;
-  shadow.querySelector('[data-focus="copy"]').click();
-  await new Promise(resolve => setTimeout(resolve, 60));
-  const dialog = shadow.children.find(node => node.tagName === 'DIALOG');
-  const footer = dialog.children[0].children.find(node => node.tagName === 'FOOTER');
-  const status = footer.children.find(node => String(node.className).includes('status'));
-  assert.match(status.textContent, /rich clipboard is unavailable/);
-  assert.equal(status.className.includes('error'), true);
-});
+/* --------------------------------------------------------------- wiring -- */
 
-/* ------------------------------------------------------- shipped wiring -- */
-
-test('Both wireframe files are injected before the toolbar and attached once', () => {
+test('Wireframe is injected before the toolbar, with no extra toolbar hook', () => {
   const background = read('js/background.js');
-  const injected = /files:\s*\[([^\]]+)\]/.exec(background)[1];
-  const order = [...injected.matchAll(/"([^"]+)"/g)].map(match => match[1]);
-  assert.ok(order.includes('js/wireframe-core.js'));
-  assert.ok(order.includes('js/wireframe.js'));
+  const list = /files:\s*\[([^\]]+)\]/.exec(background)[1];
+  const order = Array.from(list.matchAll(/"([^"]+)"/g), match => match[1]);
+  assert.ok(order.includes('js/wireframe-core.js') && order.includes('js/wireframe.js'));
   assert.ok(order.indexOf('js/wireframe-core.js') < order.indexOf('js/wireframe.js'));
   assert.ok(order.indexOf('js/wireframe.js') < order.indexOf('js/h2d_toolbar.js'));
+  assert.ok(order.indexOf('js/capture-safety.js') < order.indexOf('js/wireframe.js'));
   const toolbar = read('js/h2d_toolbar.js');
-  assert.equal((toolbar.match(/PageCaptureWireframe\?\.attach\(/g) || []).length, 1);
-  const menu = read('js/design-system.js');
-  assert.match(menu, /PageCaptureWireframe/);
-  assert.match(menu, /Copy as wireframe/);
+  assert.doesNotMatch(toolbar, /PageCaptureWireframe/);
+  const designSystem = read('js/design-system.js');
+  assert.doesNotMatch(designSystem, /Wireframe|wireframe/);
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
 });
 
-test('Wireframe runtime stays local and never fetches a page asset', () => {
+test('The wireframe runtime stays local and never fetches a page asset', () => {
   const source = read('js/wireframe-core.js') + read('js/wireframe.js');
-  assert.doesNotMatch(source, /\bfetch\s*\(/);
-  assert.doesNotMatch(source, /XMLHttpRequest|createObjectURL|chrome\.(?:runtime|storage|tabs)/);
-  assert.doesNotMatch(source, /srcdoc|\.src\s*=/);
-  assert.match(source, /sandbox",\s*"allow-same-origin"/);
-  assert.match(source, /default-src 'none'/);
+  assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
+  assert.doesNotMatch(source, /clipboard\.(?:read|readText|write)/);
+  assert.doesNotMatch(source, /chrome\.(?:runtime|tabs|scripting)/);
+  assert.match(source, /chrome\.storage\.local/);
 });

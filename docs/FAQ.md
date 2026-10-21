@@ -18,27 +18,40 @@ A `text/html` payload containing the established `figma`/`figh2d` snapshot
 format — one entry per capture, plus plain text. Pasting into Figma produces
 editable frames, text, shapes and image fills, not a single screenshot.
 
+### How do I get a wireframe?
+
+Open **Viewports**, tick **Copy as wireframe**, pick **Low**, **Medium** or
+**High**, then press **Capture design** as usual. It is a setting, not a separate
+button — every checked width is rebuilt in the same copy, and the choice is
+remembered until you uncheck it.
+
 ### How is the wireframe different from **Capture design**?
 
-**Capture design** reproduces the page: its colours, images, fonts and effects as
-editable layers. **Copy as wireframe** deliberately throws that away and keeps the
-structure: measured boxes, text (or grey bars at Low), labelled placeholders and a
-fixed grey palette, at three fidelity levels. Use the capture when you need the
-real screen; use the wireframe when you are re-planning the layout.
+**Capture design** reproduces the page: colours, images, fonts and effects as
+editable layers. With **Copy as wireframe** ticked, the same capture is rewritten
+to keep only structure — measured boxes, text (or grey bars at Low), labelled
+placeholders and a fixed grey palette. Uncheck it and copy again to get the real
+page back; the stored capture is never modified.
 
-### Why are all the images boxes with a `+`?
+### Why does the tray thumbnail show the real page?
 
-Wireframes never load assets. An `img`, a CSS background image, a `video`, a
-canvas, inline SVG artwork and a cross-origin frame all become vector
-placeholders — labelled with the `alt` text where there is one. That keeps the
-copy fast and means the wireframe cannot make a request the page did not.
+Because that is what was captured. The wireframe is produced at copy time, so the
+thumbnail (and the *Copy* button in the tray) reflect the stored capture. With the
+option on, the tray copy is a wireframe too.
+
+### Why are all the images boxes with a label?
+
+Wireframes never load or embed assets. An `img`, a CSS background image, a
+gradient, a `video`, a canvas, inline SVG artwork and a cross-origin frame all
+become vector placeholders, labelled from `alt` or `aria-label` where there is
+one. That keeps the copy fast and means the wireframe cannot make a request the
+page did not.
 
 ### Why does my wireframe look empty?
 
 If the content is drawn into a canvas or WebGL, or lives inside a cross-origin
-frame, there is no DOM box to measure. Try **Capture design** (it keeps canvas and
-video placeholders at their real size) or capture the visible area after the page
-has finished rendering.
+frame, there is no box to rewrite. Uncheck **Copy as wireframe** and capture the
+layers instead, or capture the section that does have a DOM.
 
 ### Which files do I load?
 
