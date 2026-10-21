@@ -24,10 +24,14 @@
 
   // One fixed grey ramp per level keeps a wireframe coherent: page colours become
   // one of these tones instead of being invented.
+  // Luminance -> grey. Each band is [upper bound of relative luminance, tone], from
+  // the darkest band to the lightest, so a black footer stays dark, a hero photo
+  // reads mid grey and a white card keeps the palest tone. Low is flatter on
+  // purpose: structure only, and print-like.
   const FILL_RAMP = Object.freeze({
-    low: [[0.35, "#e7e7e7"], [1.01, "#f4f4f4"]],
-    medium: [[0.22, "#d9d9d9"], [0.55, "#e8e8e8"], [0.88, "#f4f4f4"], [1.01, "#fafafa"]],
-    high: [[0.14, "#c9c9c9"], [0.3, "#d8d8d8"], [0.5, "#e4e4e4"], [0.7, "#efefef"], [0.9, "#f7f7f7"], [1.01, "#fbfbfb"]]
+    low: [[0.3, "#c9c9c9"], [0.7, "#e4e4e4"], [1.01, "#f6f6f6"]],
+    medium: [[0.08, "#7a7a7a"], [0.25, "#a8a8a8"], [0.5, "#d2d2d2"], [0.8, "#ececec"], [1.01, "#f8f8f8"]],
+    high: [[0.02, "#5f5f5f"], [0.08, "#808080"], [0.2, "#a3a3a3"], [0.4, "#c6c6c6"], [0.6, "#dedede"], [0.8, "#eeeeee"], [1.01, "#f9f9f9"]]
   });
 
   // Property names in the capture model are camelCase CSS properties.
@@ -120,11 +124,28 @@
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   };
 
-  function fillTone(color, level) {
-    if (!color || color.a < 0.04) return null;
-    const value = luminance(color);
+  // Alpha is composited over what is actually behind the element before a tone is
+  // chosen. Without this a 6% black overlay would map to a dark slab, because its
+  // own luminance is black even though the page looks white there.
+  function blend(color, backdrop) {
+    const base = parseColor(backdrop) || parseColor(PAPER);
+    const alpha = clamp(color.a, 0, 1);
+    return {
+      r: color.r * alpha + base.r * (1 - alpha),
+      g: color.g * alpha + base.g * (1 - alpha),
+      b: color.b * alpha + base.b * (1 - alpha),
+      a: 1
+    };
+  }
+
+  function toneFor(value, level) {
     for (const [limit, tone] of FILL_RAMP[level]) if (value <= limit) return tone;
-    return null;
+    return FILL_RAMP[level][FILL_RAMP[level].length - 1][1];
+  }
+
+  function fillTone(color, level, backdrop = PAPER) {
+    if (!color || color.a < 0.02) return null;
+    return toneFor(luminance(blend(color, backdrop)), level);
   }
 
   function textTone(color, backdrop, level) {
@@ -132,7 +153,8 @@
     const darkBackdrop = luminance(background) < 0.5;
     if (level === "high") {
       // Keep the page's own contrast relationships, then enforce readability.
-      let value = clamp(color ? luminance(color) : (darkBackdrop ? 0.92 : 0.12), 0.06, 0.95);
+      const seen = color ? luminance(blend(color, backdrop)) : (darkBackdrop ? 0.92 : 0.12);
+      let value = clamp(seen, 0.06, 0.95);
       for (let attempt = 0; attempt < 8 && contrast(parseColor(grayHex(value)), background) < 3.4; attempt++) {
         value = darkBackdrop ? Math.min(0.97, value + 0.1) : Math.max(0.05, value - 0.1);
       }
@@ -148,10 +170,10 @@
     return size >= 24 ? "#9b9b9b" : size >= 16 ? "#adadad" : "#c3c3c3";
   }
 
-  function borderTone(color, fallback) {
+  function borderTone(color, fallback, backdrop = PAPER) {
     const parsed = parseColor(color);
-    if (!parsed || parsed.a < 0.04) return fallback;
-    return grayHex(clamp(luminance(parsed), 0.3, 0.85));
+    if (!parsed || parsed.a < 0.02) return fallback;
+    return grayHex(clamp(luminance(blend(parsed, backdrop)), 0.3, 0.85));
   }
 
   function shadowTone(value) {
@@ -222,44 +244,71 @@
     );
   }
 
-  function rewriteStyles(styles, context) {
+  // Every colour-bearing property in the capture model. Anything matching this
+  // is rewritten to a grey; nothing in a wireframe may carry a hue, which is what
+  // let brand colours (Dribbble pink, red focus rings) survive into Figma.
+  const COLOUR_KEY = /color$/i;
+  const COLOUR_KEYS = new Set(["fill", "stroke", "stopColor", "floodColor", "lightingColor", "caretColor"]);
+  const TEXT_COLOUR_KEYS = new Set(["color", "webkitTextFillColor", "textDecorationColor", "textEmphasisColor"]);
+
+  function greyValue(value, context, kind) {
+    const { level, backdrop } = context;
+    // Keywords and unparseable values are dropped so the destination applies its
+    // own default instead of inheriting a colour we could not read.
+    const parsed = parseColor(value);
+    if (!parsed) return undefined;
+    if (kind === "text") return textTone(parsed, backdrop, level);
+    if (kind === "border") return borderTone(parsed, "#d0d0d0", backdrop);
+    if (parsed.a < 0.02) return undefined;
+    return toneFor(luminance(blend(parsed, backdrop)), level);
+  }
+
+  function rewriteStyles(input, context) {
     const { level, rect, backdrop, tag } = context;
-    if (!styles || typeof styles !== "object") return {};
+    if (!input || typeof input !== "object") return {};
+    const styles = { ...input };
     const gradient = typeof styles.backgroundImage === "string" && /gradient\(/i.test(styles.backgroundImage);
     const paintedBorder = borderWidth(styles) > 0 && styles.borderTopStyle !== "none";
     for (const name of DROPPED_STYLES) delete styles[name];
     delete styles.boxShadow;
 
-    const fill = fillTone(parseColor(styles.backgroundColor), level);
-    if (fill) styles.backgroundColor = fill;
-    else if (gradient && level !== "low") styles.backgroundColor = "#f3f3f3";
-    else if (gradient) styles.backgroundColor = "#f1f1f1";
+    // 1. Normalise every colour the page supplied, before any tone of our own is
+    //    chosen, so our ramp values are final and never re-quantised.
+    const sideColours = {};
+    for (const side of ["Top", "Right", "Bottom", "Left"]) {
+      sideColours[side] = borderTone(styles[`border${side}Color`], "#d0d0d0", backdrop);
+    }
+    const pageFill = fillTone(parseColor(styles.backgroundColor), level, backdrop);
+    // Text inherits the colour of the element that paints the surface, so its tone
+    // must be judged against that surface, not against the section behind it. A
+    // dark quote band would otherwise get dark ink and lose its label entirely.
+    const textContext = pageFill && pageFill !== "none" ? { ...context, backdrop: pageFill } : context;
+    for (const key of Object.keys(styles)) {
+      const value = styles[key];
+      if (typeof value !== "string" || key === "backgroundColor") continue;
+      if (/url\(/i.test(value)) { delete styles[key]; continue; }
+      const isText = TEXT_COLOUR_KEYS.has(key);
+      const isBorder = /^border(Top|Right|Bottom|Left|Block|Inline)?Color$/.test(key) || key === "outlineColor";
+      if (isText) {
+        const grey = greyValue(value, textContext, "text");
+        if (grey) styles[key] = grey; else delete styles[key];
+      } else if (isBorder) {
+        const grey = greyValue(value, context, "border");
+        if (grey) styles[key] = grey; else delete styles[key];
+      } else if (COLOUR_KEY.test(key) || COLOUR_KEYS.has(key)) {
+        const grey = greyValue(value, context, "shape");
+        if (grey) styles[key] = grey; else delete styles[key];
+      }
+    }
+
+    // 2. Surfaces. A gradient cannot be reproduced as a flat tone, but the fact
+    //    that the section had a surface should survive as the lightest grey.
+    if (pageFill) styles.backgroundColor = pageFill;
+    else if (gradient) styles.backgroundColor = "#f3f3f3";
     else delete styles.backgroundColor;
 
-    const borderColor = borderTone(styles.borderTopColor, "#d0d0d0");
-    if (level === "low") {
-      styles.borderTopLeftRadius = radiusValue(styles, rect, level);
-      styles.borderBottomRightRadius = styles.borderTopLeftRadius;
-      styles.borderTopRightRadius = styles.borderBottomLeftRadius = styles.borderTopLeftRadius;
-      if (paintedBorder) {
-        for (const side of ["Top", "Right", "Bottom", "Left"]) {
-          styles[`border${side}Style`] = "solid";
-          styles[`border${side}Width`] = "1px";
-          styles[`border${side}Color`] = borderColor;
-        }
-      }
-    } else if (level === "medium") {
-      styles.borderTopLeftRadius = radiusValue(styles, rect, level);
-      styles.borderBottomRightRadius = styles.borderTopLeftRadius;
-      styles.borderTopRightRadius = styles.borderBottomLeftRadius = styles.borderTopLeftRadius;
-      if (paintedBorder) {
-        for (const side of ["Top", "Right", "Bottom", "Left"]) {
-          styles[`border${side}Style`] = "solid";
-          styles[`border${side}Width`] = "1px";
-          styles[`border${side}Color`] = borderColor;
-        }
-      }
-    } else {
+    // 3. Edges and corners.
+    if (level === "high") {
       styles.borderTopLeftRadius = radiusValue(styles, rect, level);
       styles.borderBottomRightRadius = radiusValue({ borderTopLeftRadius: styles.borderBottomRightRadius }, rect, level);
       styles.borderTopRightRadius = radiusValue({ borderTopLeftRadius: styles.borderTopRightRadius }, rect, level);
@@ -269,30 +318,41 @@
         for (const side of ["Top", "Right", "Bottom", "Left"]) {
           styles[`border${side}Style`] = styles[`border${side}Style`] || "solid";
           styles[`border${side}Width`] = width;
-          styles[`border${side}Color`] = borderTone(styles[`border${side}Color`], "#cfcfcf");
+          styles[`border${side}Color`] = sideColours[side];
         }
       }
-      const shadow = shadowTone(styles.boxShadow || context.shadow);
+      const shadow = shadowTone(context.shadow || input.boxShadow);
       if (shadow) styles.boxShadow = shadow;
+    } else {
+      // Low and Medium keep one hairline where the page had a visible edge, which
+      // is what makes buttons and cards read as interactive.
+      const radius = radiusValue(styles, rect, level);
+      styles.borderTopLeftRadius = radius;
+      styles.borderTopRightRadius = styles.borderBottomLeftRadius = styles.borderBottomRightRadius = radius;
+      if (paintedBorder) {
+        for (const side of ["Top", "Right", "Bottom", "Left"]) {
+          styles[`border${side}Style`] = "solid";
+          styles[`border${side}Width`] = "1px";
+          styles[`border${side}Color`] = sideColours[side];
+        }
+      }
     }
 
-    if (level !== "high") styles.opacity = "1";
-    if (styles.color != null) styles.color = textTone(parseColor(styles.color), backdrop, level);
+    // 4. A wireframe is flat and opaque: alpha is already folded into each tone.
+    styles.opacity = "1";
+    if (styles.mixBlendMode) delete styles.mixBlendMode;
     if (level !== "high") {
-      // Low has no editable text left, but keeping one neutral family on the
-      // boxes means any text layer created by hand inherits something sane.
+      // Low has no editable text left, but keeping one neutral family on the boxes
+      // means any text layer created by hand inherits something sane.
       if (styles.fontFamily) styles.fontFamily = NEUTRAL_FONT;
       styles.letterSpacing = "normal";
     }
-    if (styles.textDecorationColor != null) styles.textDecorationColor = borderTone(styles.textDecorationColor, "#8a8a8a");
-    if (styles.backgroundImage === "") delete styles.backgroundImage;
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") styles.opacity = "1";
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") delete styles.caretColor;
+    for (const key of Object.keys(styles)) {
+      if (styles[key] === undefined) delete styles[key];
+      else if (typeof styles[key] === "string" && /url\(/i.test(styles[key])) delete styles[key];
+    }
     return styles;
-  }
-
-  function rewriteComputed(computed, context) {
-    if (!computed || typeof computed !== "object") return undefined;
-    return rewriteStyles({ ...computed }, context);
   }
 
   function barNodes(textNode, parentStyles, backdrop, level, stats) {
@@ -334,11 +394,11 @@
     const label = (attributes?.["aria-label"] || attributes?.alt || attributes?.title || "").trim();
     if (label) return label.slice(0, 40);
     if (tag === "SVG") return "Icon";
-    if (tag === "IMG" || tag === "PICTURE") return "Image";
     if (tag === "VIDEO") return "Video";
     if (tag === "CANVAS") return "Canvas";
     if (tag === "IFRAME" || tag === "EMBED" || tag === "OBJECT") return "Embedded content";
-    return "Media";
+    // Anything else that painted an image (a thumbnail div, a picture) is an image.
+    return "Image";
   }
 
   function placeholderStyles(tag, originalStyles, rect, level) {
@@ -346,10 +406,11 @@
       rect.width <= 160 && isRounded(originalStyles, rect);
     const icon = tag === "SVG" && rect.width <= 40 && rect.height <= 40;
     const styles = {
-      backgroundColor: level === "low" ? "#ededed" : "#e9e9e9",
+      backgroundColor: level === "low" ? "#ededed" : level === "high" ? "#dcdcdc" : "#e3e3e3",
       borderTopStyle: "solid", borderRightStyle: "solid", borderBottomStyle: "solid", borderLeftStyle: "solid",
       borderTopWidth: "1px", borderRightWidth: "1px", borderBottomWidth: "1px", borderLeftWidth: "1px",
-      borderTopColor: "#d5d5d5", borderRightColor: "#d5d5d5", borderBottomColor: "#d5d5d5", borderLeftColor: "#d5d5d5",
+      borderTopColor: level === "high" ? "#c2c2c2" : "#d0d0d0", borderRightColor: level === "high" ? "#c2c2c2" : "#d0d0d0",
+      borderBottomColor: level === "high" ? "#c2c2c2" : "#d0d0d0", borderLeftColor: level === "high" ? "#c2c2c2" : "#d0d0d0",
       opacity: "1", color: "#8c8c8c", fontFamily: NEUTRAL_FONT, fontSize: "12px", fontWeight: "500",
       lineHeight: "16px", textAlign: "center", letterSpacing: "normal", display: "block"
     };
@@ -370,86 +431,132 @@
     doc.assets = {};
     if (Array.isArray(doc.fonts)) doc.fonts = level === "high" ? doc.fonts : [];
 
+    // Nodes are rebuilt from a whitelist, never patched in place. The snapshot also
+    // carries computedStyles, variableStyles, sourceProps, pseudo-element styles and
+    // asset pointers; any of those could hand the destination a colour, an image or
+    // a URL we did not intend to ship.
+    const element = (node, styles, childNodes) => ({
+      nodeType: 1,
+      id: typeof node.id === "string" ? node.id : undefined,
+      tag: String(node.tag || "DIV").toUpperCase(),
+      attributes: cleanAttributes(node.attributes),
+      styles,
+      rect: {
+        x: number(node.rect?.x), y: number(node.rect?.y),
+        width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
+      },
+      childNodes
+    });
+
+    const textNode = (node, text) => ({
+      nodeType: 3,
+      id: typeof node.id === "string" ? node.id : undefined,
+      text,
+      rect: {
+        x: number(node.rect?.x), y: number(node.rect?.y),
+        width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
+      },
+      lineCount: Math.max(1, Math.round(number(node.lineCount, 1)))
+    });
+
+    // Children are transformed once, for both ordinary boxes and image-backed
+    // boxes: text becomes real text (Medium/High) or bars (Low), and elements are
+    // rebuilt from the whitelist.
+    // A paint-only layer with almost no alpha and no content is a hover veil or a
+    // tint over a photo. Re-toned it becomes a grey slab; kept as-is it washes out
+    // whatever it covers. If it sits inside another element that already paints,
+    // drop it - the shape survives, the veil does not.
+    function isRedundantVeil(node, siblings) {
+      const styles = node.styles || {};
+      if (Array.isArray(node.childNodes) && node.childNodes.length > 0) return false;
+      if (borderWidth(styles) > 0 && styles.borderTopStyle !== "none") return false;
+      const paint = parseColor(styles.backgroundColor);
+      if (!paint || paint.a >= 0.12) return false;
+      const rect = node.rect || {};
+      const x = number(rect.x), y = number(rect.y);
+      const w = number(rect.width), h = number(rect.height);
+      if (!(w > 0 && h > 0)) return false;
+      return siblings.some(other => {
+        if (other === node || other.nodeType !== 1) return false;
+        const otherPaint = parseColor(other.styles?.backgroundColor);
+        const otherImage = /url\(/i.test(String(other.styles?.backgroundImage || ""));
+        const large = number(other.rect?.width) * number(other.rect?.height) >= 400;
+        if (!(otherPaint && otherPaint.a > 0.12) && !(otherImage && large)) return false;
+        const ox = number(other.rect?.x), oy = number(other.rect?.y);
+        return x >= ox - 1 && y >= oy - 1
+          && x + w <= ox + number(other.rect?.width) + 1
+          && y + h <= oy + number(other.rect?.height) + 1;
+      });
+    }
+
+    function transformChildren(node, styles, depth, inherited) {
+      const backdrop = styles.backgroundColor || inherited || PAPER;
+      const children = [];
+      const siblings = Array.isArray(node.childNodes) ? node.childNodes : [];
+      for (const child of siblings) {
+        if (stats.nodes + children.length >= LIMITS.nodes || depth >= LIMITS.depth) { stats.truncated = true; break; }
+        if (!child || typeof child !== "object") { stats.dropped++; continue; }
+        if (child.nodeType === 3) {
+          stats.text++;
+          if (level === "low") children.push(...barNodes(child, styles, backdrop, level, stats));
+          else children.push(textNode(child, typeof child.text === "string" ? child.text : ""));
+        } else if (child.nodeType === 1) {
+          if (isRedundantVeil(child, siblings)) { stats.dropped++; continue; }
+          const transformed = walkElement(child, { level, backdrop, depth: depth + 1 });
+          if (transformed) children.push(transformed);
+        } else stats.dropped++;
+      }
+      return children;
+    }
+
+    function labelNode(attributes, rect, id) {
+      const fontSize = 12, width = Math.max(1, Math.min(rect.width - 16, 200));
+      return {
+        nodeType: 3,
+        id: `${id || "wf-media"}-label`,
+        text: mediaLabel(String(attributes.__tag || ""), attributes),
+        rect: {
+          x: round(rect.x + (rect.width - width) / 2),
+          y: round(rect.y + rect.height / 2 - fontSize * 0.8),
+          width: round(width),
+          height: round(fontSize * 1.6)
+        },
+        lineCount: 1
+      };
+    }
+
     function walkElement(node, context) {
       stats.nodes++;
+      const tag = String(node.tag || "DIV").toUpperCase();
       const rect = {
         x: number(node.rect?.x), y: number(node.rect?.y),
         width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
       };
-      const tag = String(node.tag || "").toUpperCase();
-      const isMedia = MEDIA_TAGS.has(tag);
-      node.rect = rect;
-      node.attributes = cleanAttributes(node.attributes);
-      const originalShadow = typeof node.styles?.boxShadow === "string" ? node.styles.boxShadow : "";
+      const attributes = cleanAttributes(node.attributes);
+      const isMediaTag = MEDIA_TAGS.has(tag);
+      // A card thumbnail is usually a div with a background image, not an <img>,
+      // so any sizeable element that paints a URL image becomes a placeholder too.
+      const paintedImage = /url\(/i.test(String(node.styles?.backgroundImage || "")) ||
+        /url\(/i.test(String(node.styles?.maskImage || ""));
 
-      if (isMedia) {
+      if (isMediaTag || (paintedImage && rect.width * rect.height >= 400)) {
         stats.placeholders++;
         const placeholder = placeholderStyles(tag, node.styles || {}, rect, level);
-        node.childNodes = [];
-        node.styles = placeholder.styles;
-        delete node.computedStyles;
-        delete node.variableStyles;
-        delete node.sourceProps;
-        delete node.placeholderUrl;
-        delete node.content;
-        delete node.pseudoElementNodes;
-        delete node.pseudoElementStyles;
-        delete node.scrollRect;
-        delete node.figmaComponentMetadata;
-        if (level !== "low" && !placeholder.icon && !placeholder.avatar && rect.width >= 96 && rect.height >= 64) {
-          const label = mediaLabel(tag, node.attributes);
-          const fontSize = 12, labelWidth = Math.min(rect.width - 16, 200);
-          node.childNodes.push({
-            nodeType: 3,
-            id: `${node.id || "wf-media"}-label`,
-            text: label,
-            rect: {
-              x: round(rect.x + (rect.width - labelWidth) / 2),
-              y: round(rect.y + rect.height / 2 - fontSize * 0.8),
-              width: Math.max(1, round(labelWidth)),
-              height: round(fontSize * 1.6)
-            },
-            lineCount: 1
-          });
+        const large = rect.width >= 96 && rect.height >= 64;
+        const labelled = level !== "low" && large && !placeholder.icon && !placeholder.avatar;
+        if (!isMediaTag) {
+          // An image-backed box may still hold real content (badges, captions).
+          // Keep it, and skip the label so the two cannot collide.
+          const kept = transformChildren(node, placeholder.styles, context.depth, context.backdrop);
+          if (kept.length) return element(node, placeholder.styles, kept);
         }
-        return node;
+        const children = labelled ? [labelNode({ ...attributes, __tag: tag }, rect, node.id)] : [];
+        return element(node, placeholder.styles, children);
       }
 
-      node.styles = rewriteStyles(node.styles || {}, { level, rect, backdrop: context.backdrop, tag, shadow: originalShadow });
-      if (node.computedStyles) node.computedStyles = rewriteComputed(node.computedStyles, { level, rect, backdrop: context.backdrop, tag });
-      delete node.variableStyles;
-      delete node.sourceProps;
-      delete node.placeholderUrl;
-      delete node.content;
-      delete node.pseudoElementNodes;
-      delete node.pseudoElementStyles;
-      delete node.scrollRect;
-      delete node.figmaComponentMetadata;
-
-      const fill = parseColor(node.styles?.backgroundColor) ? node.styles.backgroundColor : null;
-      const childBackdrop = fill || context.backdrop;
-      const fontStyles = node.styles || {};
-      const children = [];
-      for (const child of Array.isArray(node.childNodes) ? node.childNodes : []) {
-        if (stats.nodes + children.length >= LIMITS.nodes || context.depth >= LIMITS.depth) { stats.truncated = true; break; }
-        if (!child || typeof child !== "object") continue;
-        if (child.nodeType === 3) {
-          stats.text++;
-          if (level === "low") children.push(...barNodes(child, fontStyles, childBackdrop, level, stats));
-          else {
-            child.rect = {
-              x: number(child.rect?.x), y: number(child.rect?.y),
-              width: Math.max(0, number(child.rect?.width)), height: Math.max(0, number(child.rect?.height))
-            };
-            child.text = typeof child.text === "string" ? child.text : "";
-            children.push(child);
-          }
-        } else if (child.nodeType === 1) {
-          children.push(walkElement(child, { level, backdrop: childBackdrop, depth: context.depth + 1 }));
-        } else stats.dropped++;
-      }
-      node.childNodes = children;
-      return node;
+      const originalShadow = typeof node.styles?.boxShadow === "string" ? node.styles.boxShadow : "";
+      const styles = rewriteStyles(node.styles || {}, { level, rect, backdrop: context.backdrop, tag, shadow: originalShadow });
+      return element(node, styles, transformChildren(node, styles, context.depth, context.backdrop));
     }
 
     doc.root = walkElement(doc.root, { level, backdrop: PAPER, depth: 0 });

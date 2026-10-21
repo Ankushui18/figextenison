@@ -9,7 +9,7 @@ that drive the real extension with Playwright.
 npm test          # node --test tests/*.test.cjs
 ```
 
-**287 checks, 0 dependencies, ~1 second.** No install step, no browser.
+**293 checks, 0 dependencies, ~1 second.** No install step, no browser.
 
 | File | Covers |
 |---|---|

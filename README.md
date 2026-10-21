@@ -9,8 +9,8 @@ No account, no server, no telemetry, no uploads.</p>
 <p align="center">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/version-1.8.1-0d99ff" alt="version 1.8.1">
-  <img src="https://img.shields.io/badge/tests-287%20passing-brightgreen" alt="287 checks passing">
+  <img src="https://img.shields.io/badge/version-1.8.2-0d99ff" alt="version 1.8.2">
+  <img src="https://img.shields.io/badge/tests-293%20passing-brightgreen" alt="293 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -48,7 +48,7 @@ No account, no server, no telemetry, no uploads.</p>
 | **See what's missing** (honest list) | [Known limits](#known-limits) |
 | **Fix a problem** | [docs/FAQ.md](docs/FAQ.md) |
 
-> **Status: 1.8.1, source-distributed.** Not on the Chrome Web Store yet, so you
+> **Status: 1.8.2, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
 ---
@@ -223,8 +223,8 @@ using the same rendering engine that produces responsive captures.
 | Level | What it keeps | What it replaces |
 |---|---|---|
 | **Low · Skeleton** | Box geometry, section boundaries, layout | All text becomes grey bars; no radii, shadows, media or colour |
-| **Medium · Structure** | Real text in a neutral typeface, real sizes and alignment | Colours flatten to greys, radii cap at 6px, images become labelled placeholders |
-| **High · Detail** | The page's own font stack, type hierarchy, radii, border weights | Colour becomes a five-step grey ramp, shadows are re-coloured, images stay placeholders |
+| **Medium · Structure** | Real text in a neutral typeface, real sizes and alignment | Colours flatten to greys by brightness, radii cap at 6px, images become labelled placeholders |
+| **High · Detail** | The page's own font stack, type hierarchy, radii, border weights | Colour becomes a grey ramp that keeps dark sections dark, shadows are re-coloured, images stay placeholders |
 
 How it works:
 
@@ -243,6 +243,12 @@ How it works:
 - **Reversible.** The stored capture is untouched, so unchecking the option and
   copying again gives you the real page. The setting persists per browser profile,
   like the width presets.
+
+![The same page at Low, Medium and High: bar-only skeleton, editable text on greys,
+and a darker detail ramp with the photo and footer bands kept](docs/wireframe-preview.png)
+
+*Left to right: **Low**, **Medium**, **High** — rendered through the real transform
+by `scripts/wireframe-preview.js`. No page colour, image or font survives.*
 
 The tray thumbnail still shows the original page, because that is what was
 captured; the clipboard payload is the wireframe.
@@ -309,7 +315,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 287 dependency-free checks, no install, ~1s
+npm test          # 293 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -331,7 +337,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **287 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **293 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.

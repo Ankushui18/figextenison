@@ -193,6 +193,10 @@ function snapshot(overrides = {}) {
   const root = element('DIV', { x: 0, y: 0, width: 1200, height: 900 }, {
     id: 'root',
     styles: { backgroundColor: 'rgb(255, 255, 255)', color: 'rgb(17, 17, 17)', fontFamily: '"Brand Serif", Georgia, serif', fontSize: '16px', lineHeight: '24px' },
+    computedStyles: { backgroundColor: 'rgb(234, 76, 137)', background: 'rgb(234, 76, 137) none repeat scroll 0% 0%', color: 'rgb(234, 76, 137)' },
+    variableStyles: { backgroundColor: 'rgb(234, 76, 137)' },
+    sourceProps: { className: 'pink' },
+    pseudoElementStyles: { before: { backgroundColor: 'rgb(234, 76, 137)' } },
     childNodes: [
       element('HEADER', { x: 0, y: 0, width: 1200, height: 80 }, {
         id: 'header',
@@ -378,6 +382,140 @@ test('Inline SVG artwork collapses to a single icon box', () => {
   assert.equal(icon.styles.borderTopLeftRadius, '4px', 'the artwork is now a rounded box');
   assert.equal(icon.styles.borderTopWidth, '1px');
   assert.equal(result.root.childNodes.some(node => node.tag === 'PATH'), false);
+});
+
+/* --------------------------------------------------- colour invariants --- */
+
+// Walk the emitted JSON and collect every colour literal, so one test can enforce
+// "a wireframe contains no hue at all" for arbitrary pages.
+function coloursIn(value, found = []) {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(/rgba?\([^)]+\)|#[0-9a-f]{3,8}\b/gi)) found.push(match[0]);
+  } else if (Array.isArray(value)) {
+    for (const entry of value) coloursIn(entry, found);
+  } else if (value && typeof value === 'object') {
+    for (const entry of Object.values(value)) coloursIn(entry, found);
+  }
+  return found;
+}
+const isGrey = colour => {
+  if (colour.startsWith('#')) {
+    const hex = colour.slice(1);
+    const expand = hex.length === 3 || hex.length === 4 ? Array.from(hex).map(char => char + char) : hex.match(/../g);
+    return expand[0].toLowerCase() === expand[1].toLowerCase() && expand[1].toLowerCase() === expand[2].toLowerCase();
+  }
+  const [r, g, b] = (colour.match(/[\d.]+/g) || []).map(Number);
+  return Math.abs(r - g) < 1 && Math.abs(g - b) < 1;
+};
+
+test('A wireframe contains no hue anywhere, at any level', () => {
+  const { Core } = harness();
+  const page = snapshot();
+  // Dribbble-like: brand pink everywhere a colour can hide, including the
+  // secondary style channels and the exotic colour properties.
+  const drizzle = (value) => {
+    for (const node of [value.root, ...value.root.childNodes]) {
+      node.styles = { ...node.styles, caretColor: 'rgb(234, 76, 137)', columnRuleColor: 'rgb(255, 0, 0)', accentColor: 'rgb(0, 128, 255)', textDecorationColor: 'rgb(234, 76, 137)' };
+      node.computedStyles = { backgroundColor: 'rgb(234, 76, 137)', background: 'rgb(234, 76, 137) none repeat', borderTopColor: 'rgb(255,0,0)' };
+    }
+    return value;
+  };
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(drizzle(JSON.parse(JSON.stringify(page))), { level });
+    const colours = coloursIn(JSON.parse(JSON.stringify(result)));
+    assert.ok(colours.length > 0, `${level}: expected tones in the output`);
+    const offending = Array.from(new Set(colours)).filter(colour => !isGrey(colour));
+    assert.deepEqual(offending, [], `${level}: every colour must be grey`);
+    const serialized = JSON.stringify(result);
+    assert.doesNotMatch(serialized, /url\(|https?:\/\/|data:image|<svg/i, `${level}: no asset reference may survive`);
+  }
+});
+
+test('A faint overlay stays light instead of becoming a dark slab', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'overlay', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 },
+    styles: { backgroundColor: 'rgba(0, 0, 0, 0.06)', borderTopWidth: '0px' }, childNodes: []
+  }];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(doc, { level });
+    const fill = result.root.childNodes[0].styles.backgroundColor;
+    const parsed = Core.parseColor(fill);
+    assert.ok(Core.luminance(parsed) > 0.8, `${level}: ${fill} should stay near-white, not a dark block`);
+  }
+});
+
+test('Brand colour is reduced by luminance, not kept for its hue', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [
+    { nodeType: 1, id: 'pink', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(234, 76, 137)' }, childNodes: [] },
+    { nodeType: 1, id: 'red', tag: 'DIV', attributes: {}, rect: { x: 0, y: 220, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(255, 0, 0)' }, childNodes: [] },
+    { nodeType: 1, id: 'blue', tag: 'DIV', attributes: {}, rect: { x: 0, y: 440, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(0, 0, 255)' }, childNodes: [] }
+  ];
+  const { document: result } = Core.transformDocument(doc, { level: 'medium' });
+  const tones = Array.from(result.root.childNodes, node => node.styles.backgroundColor);
+  assert.equal(tones.every(isGrey), true, tones.join(', '));
+  // Dark blue is darker than Dribbble pink, so the greys keep that relationship
+  // even though the hues are gone.
+  const [pink, , blue] = tones.map(tone => Core.luminance(Core.parseColor(tone)));
+  assert.ok(pink > blue, `pink ${pink} should read lighter than blue ${blue}`);
+});
+
+test('Text on a dark band is inked light, so the label survives', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'band', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 600, height: 160 },
+    styles: { backgroundColor: 'rgb(13, 13, 13)', color: 'rgb(13, 13, 13)' },
+    childNodes: [{ nodeType: 3, id: 'band-text', text: 'They untangled a dashboard in six weeks.', rect: { x: 20, y: 60, width: 400, height: 24 } }]
+  }];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(doc, { level });
+    const band = result.root.childNodes[0];
+    // Readability is relative: Low flattens the band to a light tone, Medium keeps it
+    // dark. What matters is that the ink keeps a readable contrast in both cases.
+    const ink = Core.luminance(Core.parseColor(band.styles.color));
+    const surface = Core.luminance(Core.parseColor(band.styles.backgroundColor));
+    const ratio = Core.contrast(Core.parseColor(band.styles.color), Core.parseColor(band.styles.backgroundColor));
+    assert.ok(ratio >= 3, `${level}: ink ${band.styles.color} on ${band.styles.backgroundColor} is ${ratio.toFixed(2)}:1`);
+    assert.ok(surface < 0.5 ? ink > 0.5 : ink < 0.5, `${level}: ink must sit opposite its surface (ink ${ink}, surface ${surface})`);
+  }
+});
+
+test('A faint veil over a painted sibling is dropped, a lone tint is kept', () => {
+  const { Core } = harness();
+  const card = {
+    nodeType: 1, id: 'card', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 },
+    styles: { backgroundImage: 'url(https://cdn.example/thumb.jpg)', backgroundSize: 'cover' }, childNodes: []
+  };
+  const veil = {
+    nodeType: 1, id: 'veil', tag: 'DIV', attributes: {}, rect: { x: 8, y: 8, width: 284, height: 184 },
+    styles: { backgroundColor: 'rgba(0, 0, 0, 0.05)' }, childNodes: []
+  };
+  const doc = snapshot();
+  doc.root.childNodes = [card, veil];
+  const { document: withVeil } = Core.transformDocument(doc, { level: 'medium' });
+  const ids = Array.from(withVeil.root.childNodes, node => node.id);
+  assert.equal(ids.includes('veil'), false, `veil must not ship: ${ids.join(', ')}`);
+  assert.equal(ids.includes('card'), true);
+
+  // The same fill on its own is a section tint and must be re-toned, not removed.
+  doc.root.childNodes = [{ ...veil }];
+  const { document: alone } = Core.transformDocument(doc, { level: 'medium' });
+  assert.equal(alone.root.childNodes.length, 1);
+  assert.ok(Core.luminance(Core.parseColor(alone.root.childNodes[0].styles.backgroundColor)) > 0.8);
+});
+
+test('Secondary style channels are not shipped to the destination', () => {
+  const { Core } = harness();
+  const { document: result } = Core.transformDocument(snapshot(), { level: 'medium' });
+  const node = result.root.childNodes[0];
+  for (const key of ['computedStyles', 'variableStyles', 'sourceProps', 'pseudoElementStyles', 'pseudoElementNodes', 'placeholderUrl', 'content', 'scrollRect']) {
+    assert.equal(Object.hasOwn(node, key), false, `${key} must be dropped`);
+  }
+  assert.deepEqual(Array.from(Object.keys(result.root), key => key).sort(), ['attributes', 'childNodes', 'id', 'nodeType', 'rect', 'styles', 'tag']);
 });
 
 /* -------------------------------------------------------- determinism ---- */
