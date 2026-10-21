@@ -17,7 +17,8 @@ chrome://extensions  →  extension/  (manifest.json, service worker, assets)
       └── isolated world in the page (the toolbar and all capture code)
                js/privacy.js → js/capture-safety.js → js/design-system-core.js
                → js/design-system-board.js → js/design-system.js
-               → js/viewports.js → js/h2d_toolbar.js
+               → js/viewports.js → js/wireframe-core.js → js/wireframe.js
+               → js/h2d_toolbar.js
 ```
 
 The **options page** (`options.html` + `js/core.js` + `js/options.js`) is a
@@ -35,13 +36,22 @@ capture back to the worker.
 | `js/viewports.js` | responsive copy rendering, lazy-image resolution, asset batching, full-page and scroll-area expansion | medium, readable |
 | `js/design-system-core.js` | pure token extraction/review/merge logic (no DOM, no network) | medium, readable |
 | `js/design-system-board.js` | builds the editable board and the `text/html` clipboard payload | medium, readable |
-| `js/design-system.js` | the Design System panel UI | medium, readable |
+| `js/design-system.js` | the Design System panel UI, and the **More tools** menu | medium, readable |
+| `js/wireframe-core.js` | pure wireframe planning: levels, grey ramps, text bars, placeholder rules, tree geometry | medium, readable |
+| `js/wireframe.js` | wireframe scan, renderer, preview panel, copy path | medium, readable |
 | `js/h2d_toolbar.js` | **everything else in the page**: toolbar chrome, capture engine, serializer, picker, viewports popover, clipboard write | large, minified |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
 
 If you only need to change a toast message or a limit, it is probably in
 `capture-safety.js` or `viewports.js`, not in the minified bundle.
+
+Feature panels are plug-ins, not part of the bundle. `design-system.js` and
+`wireframe.js` both behave the same way: the toolbar calls
+`attach(controller, helpers)` once, the panel mounts its own host element in a
+closed shadow root, adds a menu entry, and cleans up on
+`controller.lifecycleAbort`. Removing `wireframe.js` from the injection list
+leaves the rest of the extension untouched — the menu simply stops offering it.
 
 ## Message protocol
 
@@ -108,6 +118,33 @@ adopted stylesheets and readable CSSOM), and the same serializer runs per width.
 
 When this is not enough, it says so: JavaScript-only breakpoint rerenders are not
 replayed. See "Known limits" in the README.
+
+## Wireframe
+
+The wireframe mode is a two-file plug-in and shares the capture engine rather
+than duplicating it:
+
+1. **Scan** (`wireframe.js`). A depth- and count-bounded walk of the live DOM
+   records boxes, text runs and media placeholders with absolute coordinates.
+   Text is measured with `Range.getClientRects()`, which gives real line boxes —
+   so a "text bar" lines up with the line it replaces. The page is never written
+   to: no attributes, no scroll, no resize, and no image is loaded.
+2. **Plan** (`wireframe-core.js`). Pure functions turn that flat scan into a tree:
+   colours are reduced to a fixed grey ramp per level, radii/borders/shadows are
+   clamped or re-coloured, text becomes either bars (Low) or styled text
+   (Medium/High), and content outside a clipping ancestor is dropped. The plan is
+   deterministic, so the preview and the copy are the same board.
+3. **Render** (`wireframe.js`). Each plan block becomes an absolutely positioned
+   element with explicit styles — no inherited page CSS, no external fonts, no
+   network URLs. Placeholder `+` marks are real rectangles, not an image.
+4. **Copy.** The board is rendered again into a script-disabled, `sandbox`ed
+   iframe with a `default-src 'none'` policy, then captured with the same
+   `capture → serialize → makeClipboardHtml → navigator.clipboard.write` path the
+   design-system board uses. Preparation is bounded at 12s and 16 MiB, and the
+   temporary frame is always removed.
+
+The preview is the same board scaled with a CSS transform, so browsing it can
+never change what gets copied.
 
 ## Where to change things
 

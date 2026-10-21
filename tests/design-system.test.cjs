@@ -134,12 +134,14 @@ test('Core initialization is idempotent on repeated toolbar injection', () => {
 test('Toolbar regression baseline retains board/responsive/full-page/scroll-area behavior, P1 safety and privacy-safe image reporting', () => {
   const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
   const hook = ',globalThis.PageCaptureDesignSystem?.attach(d,globalThis.PageCaptureDesignBoard?.createCopier({capture:Sn,serialize:zr,encode:Ir}))';
+  const wireframeHook = ',globalThis.PageCaptureWireframe?.attach(d,{capture:Sn,serialize:zr,encode:Ir})';
   const flag = 'scrollbarManager:n.skipScrollbarHiding?{hide(){},show(){}}:new ft({analyticsTimer:L=>o("sb",L)})';
   assert.equal(toolbar.split(hook).length - 1, 1);
+  assert.equal(toolbar.split(wireframeHook).length - 1, 1);
   assert.equal(toolbar.split(flag).length - 1, 1);
   assert.match(toolbar, /success&&o\(__vpCopySuccessMessage\(d\)\)/);
   assert.match(toolbar, /function __vpCopySuccessMessage\(records\)/);
-  const original = toolbar.replace(hook, '').replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})');
+  const original = toolbar.replace(hook, '').replace(wireframeHook, '').replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})');
   const hash = crypto.createHash('sha256').update(original).digest('hex');
   assert.equal(hash, '03c68f424609c68345e5c9beacba18343c7ddfa657e299c0e39d2ab0f6410a51');
 });

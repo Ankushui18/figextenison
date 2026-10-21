@@ -19,6 +19,21 @@ Be careful here — this matters for trust.
 None of these are screenshots of a real website, and none of them claim to be.
 If you replace one with a real capture, update this table.
 
+## A wireframe you can run yourself
+
+[`wireframe-demo.html`](wireframe-demo.html) is not a screenshot: it is a sample
+page that loads the shipped `extension/js/wireframe-core.js` and
+`extension/js/wireframe.js`, scans itself with the real scanner, and renders the
+real plan at Low, Medium or High. Serve the repository root and open it:
+
+```bash
+python3 -m http.server 4173
+# then visit http://localhost:4173/docs/wireframe-demo.html
+```
+
+The demo bar and preview panel carry `data-h2d-ignore`, so the scanner skips the
+demo chrome — only the sample site is rebuilt.
+
 ## Replacing them with real screenshots
 
 Real captures look better and are easy to take. Use the same names and sizes so
