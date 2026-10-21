@@ -1,8 +1,52 @@
 # Privacy and verification audit
 
-Version: **1.8.1**
+Version: **1.8.2**
 
 Review/test date: **21 October 2026**
+
+## 1.8.2 — wireframe fidelity
+
+- **Shape of the change.** Only `extension/js/wireframe-core.js` changed. The
+  popover, persistence, capture pipeline and clipboard contract are identical to
+  1.8.1, so **Capture design** still writes the wireframe and nothing else moved.
+- **No hue can reach Figma.** Every colour-bearing key (`*Color`, `fill`, `stroke`,
+  `caretColor`, `accentColor`, `columnRuleColor`, …) is rewritten to a grey, and
+  alpha is composited over the real backdrop first. A 6% black hover veil becomes
+  near-white; it can no longer become a dark slab. A 5%-opacity veil that sits
+  inside a painted sibling is dropped instead of being re-toned.
+- **Output is rebuilt from a whitelist.** `computedStyles`, `variableStyles`,
+  `sourceProps`, pseudo-element styles, `placeholderUrl`, `content` and
+  `scrollRect` are never copied, so no second style channel or asset pointer can
+  carry a page colour or image into the paste.
+- **Faithful tones.** The grey ramp now reaches dark values, so a black footer
+  stays dark at High, a brand band reads mid grey and white cards stay light. Text
+  is inked against its own surface, keeping labels readable on dark sections.
+- **Placeholders instead of blanks.** A `div` that paints a background image is a
+  placeholder (not a lost card); real children are kept and the label is skipped
+  so the two cannot collide.
+- **Hidden content is not pasted.** `display:none`, `opacity:0` and
+  `visibility:hidden` subtrees are dropped (`stats.hidden`) and
+  `content-visibility:hidden` keeps only its own box. A wireframe therefore cannot
+  reveal copy the page keeps out of view.
+- **Bound, not open-ended.** Layer ids cap at 48 characters, text at 2,000
+  characters (control characters and lone surrogates removed), coordinates clamp
+  to ±1,000,000px with 200,000px per side, and the layer budget counts layers that
+  actually ship. A copy that stops at that budget says so in the popover hint.
+- **No font files.** At High the `fonts` map is reduced to family/style/weight
+  names; a face `url`, `http(s):` or `data:` value is removed, so the transform
+  still ships no asset pointer of any kind.
+- **The capture is left alone.** `transformDocument` now returns a fresh document
+  instead of editing the capture it was given, and tones that are already
+  wireframe tones are final, so a second pass is byte-identical.
+- **The option states its own availability.** If `PageCaptureSafety` is absent the
+  checkbox is disabled and says *Unavailable* rather than silently copying the
+  real page; a selection made while storage is still loading is not overwritten;
+  the section re-attaches when the popover is rebuilt.
+- **Verification:** `npm test` — **304 checks, 0 failures**, including 45 wireframe
+  checks. `scripts/wireframe-preview.js` renders a synthetic Dribbble-shaped page
+  through the real transform for visual review.
+- **Inventory:** **22 files / 766,365 bytes**, of which **12 JavaScript
+  files / 392,623 bytes**. Manifest version is **1.8.2**.
 
 ## 1.8.1 — wireframe as a capture setting
 
@@ -26,7 +70,8 @@ Review/test date: **21 October 2026**
 - **Nothing is mutated.** The stored capture is left as captured, so the wireframe
   is reversible; a record that cannot be rewritten is copied unchanged.
 - **Inventory:** **22 files / 22 bytes**, of which **12 JavaScript
-  files / 377,793 bytes**. Manifest version is **1.8.1**.
+  files / 384,178 bytes** of the **22 files / 757,920 bytes** shipped. Manifest
+  version is **1.8.2**.
 
 ## 1.8.0 — wireframe module (first attempt)
 
@@ -56,7 +101,7 @@ Review/test date: **21 October 2026**
 - **Inventory:** **22 files / 786,506 bytes**, of which **12 JavaScript files /
   412,764 bytes**. Manifest version is **1.8.0**; `tests/design-system-board.test.cjs`
   tracks that version.
-- **Verification:** `npm run verify` — **287 checks, 0 failures**, including the
+- **Verification:** `npm run verify` — **304 checks, 0 failures**, including the
   repository hygiene checks (version handshake, layout, docs links, quoted counts).
 
 ## 1.7.9 — packaged-leftovers cleanup and repository layout

@@ -157,6 +157,16 @@ Capture design ─► engine builds the snapshot(s) ─► PageCaptureSafety.pre
   saved in `chrome.storage.local` under `pc_wireframe_v1`.
 - **Safe failure.** A record that is not a version-2 snapshot, or does not parse,
   is copied unchanged; a wireframe never turns a working copy into an error.
+- **Purity and repeatability.** The transform builds a new document and never edits
+  the capture it was given. Tones that are already wireframe tones are final, so a
+  second pass over the output is byte-identical to the first.
+- **What is not copied.** `display:none` / `opacity:0` / `visibility:hidden`
+  subtrees are dropped (`stats.hidden`), zero-area wrappers are flattened into
+  their children (`stats.flattened`), ids are capped at 48 characters, text at
+  2,000 characters with control characters and lone surrogates removed, and
+  coordinates are clamped to ±1,000,000px / 200,000px per side.
+- **Fonts by name.** At High the family/style/weight names survive so the type
+  stack still reads; a face `url`, `http(s):` or `data:` value never does.
 
 ## Where to change things## Where to change things
 

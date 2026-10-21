@@ -47,6 +47,14 @@ become vector placeholders, labelled from `alt` or `aria-label` where there is
 one. That keeps the copy fast and means the wireframe cannot make a request the
 page did not.
 
+### Why is some of the page missing from the wireframe?
+
+Content the page itself hides is dropped on purpose: a `display:none` menu, an
+`opacity:0` overlay or a `visibility:hidden` label is not visible to a visitor, so
+it is not copied as a grey box with hidden text in it. `content-visibility:hidden`
+keeps its own box and drops only what is inside it. If a copy stops at the layer
+budget, the popover hint says so — capture a section instead of the whole page.
+
 ### Why does my wireframe look empty?
 
 If the content is drawn into a canvas or WebGL, or lives inside a cross-origin

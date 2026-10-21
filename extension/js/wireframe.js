@@ -16,8 +16,14 @@
   const PANEL_ID = "__pc_viewports__";
   const settings = Core.normalizeSettings(null);
   let loaded = false;
+  let dirty = false;
   let panels = new Set();
   let lastCount = 0;
+  let lastFailed = 0;
+  let lastTruncated = false;
+  // The copy hook lives in capture-safety.js. If it is not there (a partial or
+  // older build) the option must say so instead of silently copying the real page.
+  let available = false;
 
   const el = (tag, text, className) => {
     const node = document.createElement(tag);
@@ -53,13 +59,16 @@
   async function load() {
     try {
       const stored = (await chrome.storage.local.get(KEY))[KEY];
-      if (stored && typeof stored === "object") Object.assign(settings, Core.normalizeSettings(stored));
+      // A choice made while storage was still resolving wins: it is newer than
+      // whatever was saved, and it has already been persisted.
+      if (!dirty && stored && typeof stored === "object") Object.assign(settings, Core.normalizeSettings(stored));
     } catch {}
     loaded = true;
     for (const panel of panels) sync(panel);
   }
 
   function update(patch) {
+    dirty = true;
     Object.assign(settings, Core.normalizeSettings({ ...settings, ...patch }));
     persist();
     for (const panel of panels) sync(panel);
@@ -68,25 +77,30 @@
   /* -------------------------------------------------------------- popover */
 
   function hintText() {
+    if (!available) return "Unavailable in this build: the capture pipeline was not found.";
     if (!settings.on) return "Off: Capture design copies the page as it looks.";
     const level = Core.LEVELS.find(entry => entry.id === settings.level) || Core.LEVELS[1];
-    return `${level.title}: text ${level.id === "low" ? "becomes bars" : "is kept in a neutral face"}. Applies to Capture design at every checked width.`;
+    const base = `${level.title}: text ${level.id === "low" ? "becomes bars" : "is kept in a neutral face"}. Applies to Capture design at every checked width.`;
+    // A truncated rebuild is reported rather than silently pasted short.
+    return lastTruncated ? `${base} The last copy stopped at the ${Core.LIMITS.nodes.toLocaleString()} layer limit.` : base;
   }
 
   function sync(panel) {
     if (!panel?.section?.isConnected) { panels.delete(panel); return; }
     panel.checkbox.checked = settings.on;
+    panel.checkbox.disabled = !available;
     panel.checkbox.setAttribute("aria-checked", String(settings.on));
     panel.hint.textContent = hintText();
     panel.seg.querySelectorAll("button").forEach(button => {
       button.setAttribute("aria-pressed", String(button.dataset.level === settings.level));
-      button.disabled = !settings.on;
+      button.disabled = !available || !settings.on;
     });
     panel.section.setAttribute("data-state", settings.on ? "on" : "off");
   }
 
   function decorate(host) {
     if (!host || host.nodeType !== 1) return;
+    if (!available) available = install();
     const root = host.shadowRoot;
     const box = root?.querySelector?.(".box");
     if (!box || box.querySelector("[data-wireframe-section]")) return;
@@ -148,14 +162,11 @@
   function watchPopover() {
     scanForPanels();
     try {
-      const observer = new MutationObserver(records => {
-        for (const record of records) {
-          for (const node of record.addedNodes) {
-            if (node.nodeType === 1 && node.id === PANEL_ID) decorate(node);
-          }
-        }
-      });
-      observer.observe(document.documentElement, { childList: true });
+      // The popover is rebuilt on every open, and its host can be mounted anywhere
+      // under the document. Watching the whole subtree and re-scanning keeps the
+      // section attached instead of only catching the first direct append.
+      const observer = new MutationObserver(() => scanForPanels());
+      observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch {}
   }
 
@@ -166,20 +177,26 @@
   // Viewports pipeline, budgets, redaction and clipboard write are untouched.
   function transformRecords(records, level = settings.level) {
     const output = [];
-    let transformed = 0;
+    let transformed = 0, failed = 0, truncated = false;
     for (const record of Array.isArray(records) ? records : []) {
       if (record?.type !== "snapshot" || typeof record.h2dJson !== "string") { output.push(record); continue; }
       try {
         const result = Core.transformDocument(JSON.parse(record.h2dJson), { level });
         output.push({ ...record, h2dJson: JSON.stringify(result.document), wireframe: Core.summarize(result) });
+        if (result.stats?.truncated) truncated = true;
         transformed++;
       } catch {
-        // A record we cannot rebuild is copied as the real capture rather than
-        // failing the whole clipboard write.
+        // A record we cannot rebuild is copied as the real capture, untouched, rather
+        // than failing the whole clipboard write. It is counted so the success
+        // message cannot claim a wireframe that was never produced.
         output.push(record);
+        failed++;
       }
     }
     lastCount = transformed;
+    lastFailed = failed;
+    lastTruncated = truncated;
+    for (const panel of panels) sync(panel);
     return output;
   }
 
@@ -198,8 +215,10 @@
       },
       imageAssetSummary(records) {
         // A wireframe embeds no page images, so the "images included" sentence
-        // would be wrong on the success message.
-        if (settings.on) return { total: 0, included: 0, notEmbedded: 0 };
+        // would be wrong on the success message - but only if every snapshot was
+        // actually rebuilt. A fallback record is still the real page.
+        const snapshots = (Array.isArray(records) ? records : []).filter(record => record?.type === "snapshot");
+        if (settings.on && lastFailed === 0 && snapshots.length > 0) return { total: 0, included: 0, notEmbedded: 0 };
         return typeof summary === "function" ? summary(records) : { total: 0, included: 0, notEmbedded: 0 };
       }
     });
@@ -212,11 +231,14 @@
     transformRecords,
     install,
     isEnabled: () => settings.on,
+    isAvailable: () => available,
     lastTransformed: () => lastCount,
+    lastFailed: () => lastFailed,
+    lastTruncated: () => lastTruncated,
     decoratePopover: decorate
   });
 
-  install();
+  available = install();
   watchPopover();
   load();
 })();

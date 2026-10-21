@@ -4,6 +4,63 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.8.2 — Wireframe fidelity
+
+### Fixed
+
+- **Page colour no longer leaks into a wireframe.** Before, only a fixed list of
+  properties was greyed, so `color`, `caretColor`, `columnRuleColor`,
+  `accentColor` and similar keys could carry a brand hue (and a pink footer) into
+  Figma. Every colour-bearing key is normalised now, and the output nodes are
+  rebuilt from a whitelist instead of being patched in place.
+- **Faint overlays stay light.** `rgba(0, 0, 0, 0.06)` is composited over the real
+  backdrop, so a hover veil reads near-white instead of becoming a dark grey slab.
+- **Sections keep their tonal order.** The ramp now spans dark tones, so a black
+  quote band stays dark at High, a brand band reads mid grey and white cards stay
+  light, instead of a black section and a grey card both landing on mid grey.
+- **Text stays readable on dark sections.** Ink is judged against the surface the
+  element itself paints, so labels on a dark band are not painted dark-on-dark.
+- **Image cards are placeholders, not blanks.** A `div` that paints a
+  background image is treated as media; its real children (badges, captions) are
+  kept and the media label is skipped so the two cannot overlap.
+
+- **Hidden content is no longer pasted.** A `display:none` menu, an `opacity:0`
+  backdrop or a `visibility:hidden` screen-reader label used to arrive as a very
+  real grey box with very real (hidden) text in it. Such subtrees are dropped and
+  counted; `content-visibility:hidden` keeps its own box and drops only its
+  contents.
+- **The copy is repeatable.** Rebuilding an already-built wireframe used to drift,
+  because our own grey was re-quantised (`#a8a8a8` → `#d2d2d2`). Tones that are
+  already ours are now final, so copying the same capture twice gives the same
+  payload.
+- **Absurd geometry and text are bounded.** A 1e9px rect is clamped instead of
+  pasted off-canvas, a node with no usable geometry is dropped, ids are capped at
+  48 characters and one enormous text run cannot bloat the payload past a paste.
+- **Font names only, never font files.** The capture's `fonts` map can carry a
+  `url`; a wireframe now keeps the family/style/weight names at High and never an
+  `http(s)`, `data:` or `url()` value.
+- **The capture is never edited.** The transform returns a fresh document and
+  leaves the capture you were given alone, so unchecking the option still gives
+  the real page.
+- **Gradients carried by the `background` shorthand** are recognised as surfaces
+  instead of disappearing.
+- **A hairline on a dark band is lightened** so it reads; a pale hairline on a
+  light page is left as the page had it.
+- **The option reports its own state.** If the capture pipeline is missing (a
+  partial or older build) the checkbox says *Unavailable* instead of silently
+  copying the real page, the section re-attaches when the popover is rebuilt, a
+  choice made while storage is loading is no longer overwritten by the saved one,
+  and a copy that stopped at the layer limit says so in the popover hint.
+- **A fallback record is honest.** When one record cannot be rebuilt it is copied
+  as the real page — and the success message no longer claims zero embedded
+  images for that copy.
+
+### Added
+
+- `scripts/wireframe-preview.js` and `scripts/preview-raster.py` render a
+  synthetic Dribbble-shaped page through the real transform for visual review
+  (developer tools only; not shipped in the extension).
+
 ## 1.8.1 — Wireframe becomes a capture setting
 
 ### Changed

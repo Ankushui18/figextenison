@@ -148,7 +148,7 @@ function harness(options = {}) {
   const chrome = {
     storage: {
       local: {
-        async get(key) { return { [key]: stored[key] }; },
+        get: options.storageGet || (async key => ({ [key]: stored[key] })),
         async set(value) { sets.push(value); Object.assign(stored, value); }
       }
     }
@@ -170,7 +170,7 @@ function harness(options = {}) {
     Image: class {}
   });
   context.globalThis = context;
-  context.PageCaptureSafety = Safety;
+  if (options.safety !== false) context.PageCaptureSafety = Safety;
   vm.runInContext(read('js/wireframe-core.js'), context);
   vm.runInContext(read('js/wireframe.js'), context);
   return {
@@ -193,6 +193,10 @@ function snapshot(overrides = {}) {
   const root = element('DIV', { x: 0, y: 0, width: 1200, height: 900 }, {
     id: 'root',
     styles: { backgroundColor: 'rgb(255, 255, 255)', color: 'rgb(17, 17, 17)', fontFamily: '"Brand Serif", Georgia, serif', fontSize: '16px', lineHeight: '24px' },
+    computedStyles: { backgroundColor: 'rgb(234, 76, 137)', background: 'rgb(234, 76, 137) none repeat scroll 0% 0%', color: 'rgb(234, 76, 137)' },
+    variableStyles: { backgroundColor: 'rgb(234, 76, 137)' },
+    sourceProps: { className: 'pink' },
+    pseudoElementStyles: { before: { backgroundColor: 'rgb(234, 76, 137)' } },
     childNodes: [
       element('HEADER', { x: 0, y: 0, width: 1200, height: 80 }, {
         id: 'header',
@@ -378,6 +382,140 @@ test('Inline SVG artwork collapses to a single icon box', () => {
   assert.equal(icon.styles.borderTopLeftRadius, '4px', 'the artwork is now a rounded box');
   assert.equal(icon.styles.borderTopWidth, '1px');
   assert.equal(result.root.childNodes.some(node => node.tag === 'PATH'), false);
+});
+
+/* --------------------------------------------------- colour invariants --- */
+
+// Walk the emitted JSON and collect every colour literal, so one test can enforce
+// "a wireframe contains no hue at all" for arbitrary pages.
+function coloursIn(value, found = []) {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(/rgba?\([^)]+\)|#[0-9a-f]{3,8}\b/gi)) found.push(match[0]);
+  } else if (Array.isArray(value)) {
+    for (const entry of value) coloursIn(entry, found);
+  } else if (value && typeof value === 'object') {
+    for (const entry of Object.values(value)) coloursIn(entry, found);
+  }
+  return found;
+}
+const isGrey = colour => {
+  if (colour.startsWith('#')) {
+    const hex = colour.slice(1);
+    const expand = hex.length === 3 || hex.length === 4 ? Array.from(hex).map(char => char + char) : hex.match(/../g);
+    return expand[0].toLowerCase() === expand[1].toLowerCase() && expand[1].toLowerCase() === expand[2].toLowerCase();
+  }
+  const [r, g, b] = (colour.match(/[\d.]+/g) || []).map(Number);
+  return Math.abs(r - g) < 1 && Math.abs(g - b) < 1;
+};
+
+test('A wireframe contains no hue anywhere, at any level', () => {
+  const { Core } = harness();
+  const page = snapshot();
+  // Dribbble-like: brand pink everywhere a colour can hide, including the
+  // secondary style channels and the exotic colour properties.
+  const drizzle = (value) => {
+    for (const node of [value.root, ...value.root.childNodes]) {
+      node.styles = { ...node.styles, caretColor: 'rgb(234, 76, 137)', columnRuleColor: 'rgb(255, 0, 0)', accentColor: 'rgb(0, 128, 255)', textDecorationColor: 'rgb(234, 76, 137)' };
+      node.computedStyles = { backgroundColor: 'rgb(234, 76, 137)', background: 'rgb(234, 76, 137) none repeat', borderTopColor: 'rgb(255,0,0)' };
+    }
+    return value;
+  };
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(drizzle(JSON.parse(JSON.stringify(page))), { level });
+    const colours = coloursIn(JSON.parse(JSON.stringify(result)));
+    assert.ok(colours.length > 0, `${level}: expected tones in the output`);
+    const offending = Array.from(new Set(colours)).filter(colour => !isGrey(colour));
+    assert.deepEqual(offending, [], `${level}: every colour must be grey`);
+    const serialized = JSON.stringify(result);
+    assert.doesNotMatch(serialized, /url\(|https?:\/\/|data:image|<svg/i, `${level}: no asset reference may survive`);
+  }
+});
+
+test('A faint overlay stays light instead of becoming a dark slab', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'overlay', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 },
+    styles: { backgroundColor: 'rgba(0, 0, 0, 0.06)', borderTopWidth: '0px' }, childNodes: []
+  }];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(doc, { level });
+    const fill = result.root.childNodes[0].styles.backgroundColor;
+    const parsed = Core.parseColor(fill);
+    assert.ok(Core.luminance(parsed) > 0.8, `${level}: ${fill} should stay near-white, not a dark block`);
+  }
+});
+
+test('Brand colour is reduced by luminance, not kept for its hue', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [
+    { nodeType: 1, id: 'pink', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(234, 76, 137)' }, childNodes: [] },
+    { nodeType: 1, id: 'red', tag: 'DIV', attributes: {}, rect: { x: 0, y: 220, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(255, 0, 0)' }, childNodes: [] },
+    { nodeType: 1, id: 'blue', tag: 'DIV', attributes: {}, rect: { x: 0, y: 440, width: 300, height: 200 }, styles: { backgroundColor: 'rgb(0, 0, 255)' }, childNodes: [] }
+  ];
+  const { document: result } = Core.transformDocument(doc, { level: 'medium' });
+  const tones = Array.from(result.root.childNodes, node => node.styles.backgroundColor);
+  assert.equal(tones.every(isGrey), true, tones.join(', '));
+  // Dark blue is darker than Dribbble pink, so the greys keep that relationship
+  // even though the hues are gone.
+  const [pink, , blue] = tones.map(tone => Core.luminance(Core.parseColor(tone)));
+  assert.ok(pink > blue, `pink ${pink} should read lighter than blue ${blue}`);
+});
+
+test('Text on a dark band is inked light, so the label survives', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'band', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 600, height: 160 },
+    styles: { backgroundColor: 'rgb(13, 13, 13)', color: 'rgb(13, 13, 13)' },
+    childNodes: [{ nodeType: 3, id: 'band-text', text: 'They untangled a dashboard in six weeks.', rect: { x: 20, y: 60, width: 400, height: 24 } }]
+  }];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result } = Core.transformDocument(doc, { level });
+    const band = result.root.childNodes[0];
+    // Readability is relative: Low flattens the band to a light tone, Medium keeps it
+    // dark. What matters is that the ink keeps a readable contrast in both cases.
+    const ink = Core.luminance(Core.parseColor(band.styles.color));
+    const surface = Core.luminance(Core.parseColor(band.styles.backgroundColor));
+    const ratio = Core.contrast(Core.parseColor(band.styles.color), Core.parseColor(band.styles.backgroundColor));
+    assert.ok(ratio >= 3, `${level}: ink ${band.styles.color} on ${band.styles.backgroundColor} is ${ratio.toFixed(2)}:1`);
+    assert.ok(surface < 0.5 ? ink > 0.5 : ink < 0.5, `${level}: ink must sit opposite its surface (ink ${ink}, surface ${surface})`);
+  }
+});
+
+test('A faint veil over a painted sibling is dropped, a lone tint is kept', () => {
+  const { Core } = harness();
+  const card = {
+    nodeType: 1, id: 'card', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 },
+    styles: { backgroundImage: 'url(https://cdn.example/thumb.jpg)', backgroundSize: 'cover' }, childNodes: []
+  };
+  const veil = {
+    nodeType: 1, id: 'veil', tag: 'DIV', attributes: {}, rect: { x: 8, y: 8, width: 284, height: 184 },
+    styles: { backgroundColor: 'rgba(0, 0, 0, 0.05)' }, childNodes: []
+  };
+  const doc = snapshot();
+  doc.root.childNodes = [card, veil];
+  const { document: withVeil } = Core.transformDocument(doc, { level: 'medium' });
+  const ids = Array.from(withVeil.root.childNodes, node => node.id);
+  assert.equal(ids.includes('veil'), false, `veil must not ship: ${ids.join(', ')}`);
+  assert.equal(ids.includes('card'), true);
+
+  // The same fill on its own is a section tint and must be re-toned, not removed.
+  doc.root.childNodes = [{ ...veil }];
+  const { document: alone } = Core.transformDocument(doc, { level: 'medium' });
+  assert.equal(alone.root.childNodes.length, 1);
+  assert.ok(Core.luminance(Core.parseColor(alone.root.childNodes[0].styles.backgroundColor)) > 0.8);
+});
+
+test('Secondary style channels are not shipped to the destination', () => {
+  const { Core } = harness();
+  const { document: result } = Core.transformDocument(snapshot(), { level: 'medium' });
+  const node = result.root.childNodes[0];
+  for (const key of ['computedStyles', 'variableStyles', 'sourceProps', 'pseudoElementStyles', 'pseudoElementNodes', 'placeholderUrl', 'content', 'scrollRect']) {
+    assert.equal(Object.hasOwn(node, key), false, `${key} must be dropped`);
+  }
+  assert.deepEqual(Array.from(Object.keys(result.root), key => key).sort(), ['attributes', 'childNodes', 'id', 'nodeType', 'rect', 'styles', 'tag']);
 });
 
 /* -------------------------------------------------------- determinism ---- */
@@ -635,6 +773,126 @@ test('With the option off the very same call copies the untouched capture', asyn
   assert.match(JSON.stringify(decoded), /Brand Serif/);
 });
 
+/* --------------------------------------------- hidden, hidden text, bounds - */
+
+test('Content the page hides is not pasted as visible boxes', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [
+    { nodeType: 1, id: 'menu', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 300, height: 200 }, styles: { display: 'none' }, childNodes: [
+      { nodeType: 3, id: 'menu-text', text: 'Secret unreleased draft', rect: { x: 10, y: 10, width: 200, height: 20 } }
+    ] },
+    { nodeType: 1, id: 'faded', tag: 'DIV', attributes: {}, rect: { x: 0, y: 220, width: 300, height: 200 }, styles: { opacity: '0' }, childNodes: [
+      { nodeType: 3, id: 'faded-text', text: 'faded out', rect: { x: 10, y: 230, width: 200, height: 20 } }
+    ] },
+    { nodeType: 1, id: 'screen-reader', tag: 'SPAN', attributes: {}, rect: { x: 0, y: 440, width: 300, height: 20 }, styles: { visibility: 'hidden' }, childNodes: [
+      { nodeType: 3, id: 'sr-text', text: 'Only for assistive tech', rect: { x: 10, y: 440, width: 200, height: 20 } }
+    ] },
+    { nodeType: 1, id: 'skipped', tag: 'DIV', attributes: {}, rect: { x: 0, y: 480, width: 300, height: 200 }, styles: { contentVisibility: 'hidden' }, childNodes: [
+      { nodeType: 3, id: 'skipped-text', text: 'content-visibility', rect: { x: 10, y: 490, width: 200, height: 20 } }
+    ] },
+    { nodeType: 1, id: 'visible', tag: 'DIV', attributes: {}, rect: { x: 0, y: 700, width: 300, height: 100 }, styles: {}, childNodes: [
+      { nodeType: 3, id: 'visible-text', text: 'everything else', rect: { x: 10, y: 710, width: 200, height: 20 } }
+    ] }
+  ];
+  for (const level of ['low', 'medium', 'high']) {
+    const { document: result, stats } = Core.transformDocument(JSON.parse(JSON.stringify(doc)), { level });
+    const serialized = JSON.stringify(result);
+    for (const hidden of ['Secret unreleased draft', 'faded out', 'Only for assistive tech', 'content-visibility']) {
+      assert.equal(serialized.includes(hidden), false, `${level}: hidden copy must not ship (${hidden})`);
+    }
+    const ids = [];
+    const stack = [result.root];
+    while (stack.length) { const node = stack.pop(); ids.push(node.id); stack.push(...(node.childNodes || [])); }
+    assert.equal(ids.includes('menu'), false, `${level}: display:none subtree is dropped`);
+    assert.equal(ids.includes('faded'), false, `${level}: opacity:0 subtree is dropped`);
+    assert.equal(ids.includes('screen-reader'), false, `${level}: visibility:hidden subtree is dropped`);
+    // content-visibility:hidden still paints its own box, so the box stays.
+    assert.equal(ids.includes('skipped'), true, `${level}: the box survives`);
+    assert.equal(ids.includes('skipped-text'), false, `${level}: its contents do not`);
+    // Low replaces copy with bars, so only Medium/High still carry the characters.
+    if (level === 'low') assert.ok(ids.includes('visible') && stats.bars > 0, 'low: the visible block still ships, as bars');
+    else assert.equal(serialized.includes('everything else'), true, `${level}: visible copy is kept`);
+    assert.ok(stats.hidden >= 3, `${level}: hidden subtrees are counted`);
+  }
+});
+
+test('A zero-area wrapper is not a layer, but its children still are', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [
+    { nodeType: 1, id: 'contents', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 0, height: 0 }, styles: { display: 'contents' }, childNodes: [
+      { nodeType: 1, id: 'child', tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 200, height: 100 },
+        styles: { backgroundColor: 'rgb(234, 76, 137)' }, childNodes: [] }
+    ] },
+    { nodeType: 1, id: 'collapsed', tag: 'DIV', attributes: {}, rect: { x: 0, y: 200, width: 0, height: 0 }, styles: {}, childNodes: [] }
+  ];
+  const { document: result, stats } = Core.transformDocument(doc, { level: 'medium' });
+  const ids = Array.from(result.root.childNodes, node => node.id);
+  assert.deepEqual(ids, ['child'], `only the child is a layer: ${ids.join(', ')}`);
+  assert.equal(result.root.childNodes[0].rect.width, 200);
+  assert.ok(stats.flattened >= 1);
+});
+
+test('Text is bounded and stripped of characters a clipboard cannot carry', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  const huge = 'a'.repeat(Core.LIMITS.textLength + 5000);
+  doc.root.childNodes = [{
+    nodeType: 1, id: 'pre', tag: 'PRE', attributes: {}, rect: { x: 0, y: 0, width: 800, height: 400 }, styles: {},
+    childNodes: [{ nodeType: 3, id: 'pre-text', text: `${huge}\u0000\u001f\ud800end`, rect: { x: 0, y: 0, width: 800, height: 400 }, lineCount: 1 }]
+  }];
+  const { document: result } = Core.transformDocument(doc, { level: 'medium' });
+  const node = result.root.childNodes[0].childNodes[0];
+  assert.equal(node.nodeType, 3);
+  assert.ok(node.text.length <= Core.LIMITS.textLength, `bounded: ${node.text.length}`);
+  assert.ok(node.text.startsWith('aaaa'), 'the visible part is kept');
+  assert.doesNotMatch(node.text, /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/, 'no control characters');
+  assert.doesNotMatch(node.text, /[\ud800-\udbff](?![\udc00-\udfff])/, 'no lone surrogates');
+  assert.equal(JSON.parse(JSON.stringify(result.root.childNodes[0].childNodes[0])).text, node.text, 'survives a JSON round trip');
+});
+
+test('Impossible geometry is clamped instead of pasted off-canvas', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  doc.root.childNodes = [
+    { nodeType: 1, id: 'escaped', tag: 'DIV', attributes: {}, rect: { x: 1e12, y: -1e12, width: 1e12, height: 1e12 }, styles: {}, childNodes: [] },
+    { nodeType: 1, id: 'broken', tag: 'DIV', attributes: {}, rect: { x: NaN, y: Infinity, width: -40, height: 'nope' }, styles: {}, childNodes: [] }
+  ];
+  const { document: result } = Core.transformDocument(doc, { level: 'medium' });
+  const [escaped, broken] = result.root.childNodes;
+  assert.deepEqual(parse(escaped.rect), { x: Core.LIMITS.span, y: -Core.LIMITS.span, width: Core.LIMITS.size, height: Core.LIMITS.size });
+  assert.equal(broken, undefined, 'a node with no usable geometry is dropped, not pasted at 0,0');
+  assert.match(JSON.stringify(result), /^[^]*$/, 'serialises cleanly');
+  assert.doesNotMatch(JSON.stringify(result), /null|NaN|Infinity/);
+});
+
+test('Layer ids and font families are bounded, and a font URL never ships', () => {
+  const { Core } = harness();
+  const doc = snapshot({ fonts: { 'Brand Serif': { url: 'https://fixture.test/brand.woff2', family: 'Brand Serif' } } });
+  doc.root.childNodes = [{ nodeType: 1, id: 'z'.repeat(300), tag: 'DIV', attributes: {}, rect: { x: 0, y: 0, width: 100, height: 100 }, styles: {}, childNodes: [] }];
+  const high = Core.transformDocument(doc, { level: 'high' }).document;
+  assert.equal(high.root.childNodes[0].id.length, Core.LIMITS.nameLength);
+  assert.deepEqual(parse(high.fonts), { 'Brand Serif': { family: 'Brand Serif' } });
+  assert.doesNotMatch(JSON.stringify(high), /fixture\.test|woff2/, 'no font file URL');
+  for (const level of ['low', 'medium']) {
+    assert.deepEqual(parse(Core.transformDocument(doc, { level }).document.fonts), {}, `${level}: no font list at all`);
+  }
+});
+
+test('The capture handed in is left exactly as it was', () => {
+  const { Core } = harness();
+  const doc = snapshot();
+  const before = JSON.stringify(doc);
+  const first = Core.transformDocument(doc, { level: 'medium' }).document;
+  assert.equal(JSON.stringify(doc), before, 'the source document is not edited');
+  assert.notEqual(doc.root, first.root, 'the wireframe is a new tree');
+  // Rebuilding the same object twice must not drift: a second pass over our own
+  // tones used to shift a Medium surface from #a8a8a8 to #d2d2d2.
+  const second = Core.transformDocument(doc, { level: 'medium' }).document;
+  assert.equal(JSON.stringify(first), JSON.stringify(second));
+});
+
 /* --------------------------------------------------------------- wiring -- */
 
 test('Wireframe is injected before the toolbar, with no extra toolbar hook', () => {
@@ -651,6 +909,91 @@ test('Wireframe is injected before the toolbar, with no extra toolbar hook', () 
   assert.doesNotMatch(designSystem, /Wireframe|wireframe/);
   const manifest = JSON.parse(read('manifest.json'));
   assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
+});
+
+test('A choice made while storage is still loading is not overwritten', async () => {
+  let resolveStorage;
+  const pending = new Promise(resolve => { resolveStorage = resolve; });
+  const env = harness({ storageGet: () => pending });
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  assert.ok(section, 'decorated without waiting for storage');
+  const checkbox = section.querySelector('input');
+  checkbox.checked = true;
+  checkbox.dispatch('change');
+  assert.equal(env.Wireframe.isEnabled(), true, 'the tick applies immediately');
+  resolveStorage({ pc_wireframe_v1: { on: false, level: 'low' } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(env.Wireframe.isEnabled(), true, 'late storage must not undo a newer choice');
+  assert.equal(env.Wireframe.settings.level, 'medium');
+  assert.equal(checkbox.checked, true);
+  assert.equal(env.sets.length, 1, 'the choice was persisted once');
+});
+
+test('A build without the copy pipeline says so instead of doing nothing', async () => {
+  const env = harness({ safety: false });
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  const checkbox = section.querySelector('input');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(env.Wireframe.isAvailable(), false);
+  assert.equal(checkbox.disabled, true);
+  assert.match(section.textContent, /Unavailable/);
+  assert.equal(Array.from(section.querySelectorAll('button')).every(button => button.disabled), true);
+});
+
+test('The option re-attaches when the popover is rebuilt', () => {
+  const env = harness();
+  const host = buildPopoverHost(env.document);
+  env.fireMutation([host]);
+  assert.ok(host.shadowRoot.querySelector('[data-wireframe-section]'));
+  // The Viewports popover is rebuilt from scratch on reopen: our section is gone.
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  section.remove();
+  assert.equal(host.shadowRoot.querySelector('[data-wireframe-section]'), null);
+  env.fireMutation([]);
+  assert.ok(host.shadowRoot.querySelector('[data-wireframe-section]'), 'the section comes back without a new host');
+});
+
+test('A truncated rebuild is reported in the popover, not passed off as complete', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'low' } } });
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const hint = host.shadowRoot.querySelector('[data-wireframe-section]').querySelector('.hint');
+  assert.doesNotMatch(hint.textContent, /layer limit/);
+
+  const doc = snapshot();
+  doc.root.childNodes = [];
+  for (let index = 0; index < env.Core.LIMITS.nodes + 10; index++) {
+    doc.root.childNodes.push({ nodeType: 1, id: `n-${index}`, tag: 'DIV', attributes: {}, rect: { x: 0, y: index, width: 40, height: 20 }, styles: {}, childNodes: [] });
+  }
+  env.Wireframe.transformRecords([{ type: 'snapshot', id: 'big', h2dJson: JSON.stringify(doc) }]);
+  assert.equal(env.Wireframe.lastTruncated(), true);
+  assert.match(hint.textContent, /layer limit/, 'the user is told the copy stopped');
+
+  env.Wireframe.transformRecords([{ type: 'snapshot', id: 'small', h2dJson: JSON.stringify(snapshot()) }]);
+  assert.equal(env.Wireframe.lastTruncated(), false);
+  assert.doesNotMatch(hint.textContent, /layer limit/);
+});
+
+test('A copy that had to fall back does not claim to be image-free', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'medium' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const records = [
+    { type: 'snapshot', id: 'ok', h2dJson: JSON.stringify(snapshot()) },
+    { type: 'snapshot', id: 'broken', h2dJson: '{not json' }
+  ];
+  env.Wireframe.transformRecords(records);
+  assert.equal(env.Wireframe.lastTransformed(), 1);
+  assert.equal(env.Wireframe.lastFailed(), 1);
+  // The real page went through untouched, images and all, so the summary must not
+  // claim zero embedded images.
+  assert.deepEqual({ ...env.Safety.imageAssetSummary(records) }, { total: 3, included: 2, notEmbedded: 1 });
+  env.Wireframe.transformRecords([{ type: 'snapshot', id: 'ok', h2dJson: JSON.stringify(snapshot()) }]);
+  assert.deepEqual({ ...env.Safety.imageAssetSummary(records) }, { total: 0, included: 0, notEmbedded: 0 });
 });
 
 test('The wireframe runtime stays local and never fetches a page asset', () => {
