@@ -10,7 +10,7 @@ No account, no server, no telemetry, no uploads.</p>
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
   <img src="https://img.shields.io/badge/version-1.8.2-0d99ff" alt="version 1.8.2">
-  <img src="https://img.shields.io/badge/tests-293%20passing-brightgreen" alt="293 checks passing">
+  <img src="https://img.shields.io/badge/tests-304%20passing-brightgreen" alt="304 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -140,7 +140,7 @@ Two things are worth knowing:
 | CSS per responsive copy | 5 MiB | `viewports.js` |
 | Rich batch | 48 MiB JSON / 64 MiB HTML | `capture-safety.js` |
 | Design-system board | 16 MiB, 480 tokens, 200,000px tall | `design-system-board.js` |
-| Wireframe | 4,000 blocks, 2,500 text layers, 4,000×20,000px, 16 MiB | `wireframe-core.js`, `wireframe.js` |
+| Wireframe | 20,000 layers, depth 60, 48-char ids, 2,000-char text, ±1,000,000px / 200,000px per side, 16 MiB copy budget | `wireframe-core.js`, `wireframe.js` |
 | Asset recovery | 64 URLs per request, 10 MiB each, 5s | `background.js` |
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -240,6 +240,14 @@ How it works:
   `aria-label`. No request is made and no image data is embedded.
 - **No form values.** Inputs keep their box and placeholder text; typed values are
   never read into the payload.
+- **Nothing the page hides.** A `display:none` menu, an `opacity:0` backdrop or a
+  `visibility:hidden` label is dropped, so a wireframe cannot reveal copy the page
+  keeps hidden.
+- **Bounded, not surprising.** Layer ids, text runs and coordinates are clamped, and
+  a copy that stops at the layer budget says so in the popover hint instead of
+  arriving silently short.
+- **Repeatable.** Copying the same capture twice produces byte-identical layers;
+  the capture you were given is never edited.
 - **Reversible.** The stored capture is untouched, so unchecking the option and
   copying again gives you the real page. The setting persists per browser profile,
   like the width presets.
@@ -315,7 +323,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 293 dependency-free checks, no install, ~1s
+npm test          # 304 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -337,7 +345,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **293 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **304 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.
@@ -393,6 +401,8 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
 | Everything is slow on a huge page | Node/CSS budgets; capture a smaller section |
 | Wireframe is empty or mostly blank | The page paints into canvas/WebGL, or the content is inside a cross-origin frame → uncheck **Copy as wireframe** and capture layers instead |
 | Wireframed something by accident | Uncheck **Copy as wireframe** in **Viewports**; stored captures are untouched |
+| Wireframe stops part-way | The popover hint says it hit the layer budget; capture a section instead |
+| **Copy as wireframe** is greyed out | The capture pipeline was not found in this build; reload the extension |
 
 More in [docs/FAQ.md](docs/FAQ.md).
 

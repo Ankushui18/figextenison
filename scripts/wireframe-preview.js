@@ -42,6 +42,12 @@ function page() {
         // A faint overlay sits on top of several cards.
         ...(index % 3 === 0 ? [el(`overlay-${index}`, 'DIV', { x: x + 8, y: y + 8, width: 249, height: 190 },
           { backgroundColor: 'rgba(0, 0, 0, 0.05)' }, [])] : []),
+        // A collapsed mega-menu and an invisible hover scrim: neither is on the
+        // page, so neither may appear in the wireframe.
+        el(`menu-${index}`, 'DIV', { x, y, width: 265, height: 300 },
+          { display: 'none' }, [text(`menu-link-${index}`, 'Hidden menu item', { x, y, width: 200, height: 20 })]),
+        el(`scrim-${index}`, 'DIV', { x, y, width: 265, height: 300 },
+          { backgroundColor: 'rgb(0, 0, 0)', opacity: '0' }, []),
         text(`title-${index}`, title, { x: x + 12, y: y + 214, width: 200, height: 20 }),
         text(`meta-${index}`, 'PRO  139  4.8k', { x: x + 150, y: y + 214, width: 100, height: 18 })
       ]));
@@ -92,6 +98,9 @@ function page() {
           el('tab-designers', 'BUTTON', { x: 140, y: 540, width: 110, height: 36 }, { backgroundColor: 'rgb(255,255,255)', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'rgb(210,210,210)', borderTopLeftRadius: '18px' }, [text('tab-designers-label', 'Designers', { x: 158, y: 550, width: 74, height: 18 })]),
           el('tab-services', 'BUTTON', { x: 260, y: 540, width: 100, height: 36 }, { backgroundColor: 'rgb(255,255,255)', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'rgb(210,210,210)', borderTopLeftRadius: '18px' }, [text('tab-services-label', 'Services', { x: 280, y: 550, width: 62, height: 18 })])
         ]),
+        // A gradient carried by the shorthand rather than backgroundImage.
+        el('promo-band', 'DIV', { x: 40, y: 1860, width: 1120, height: 56 },
+          { background: 'rgb(234, 76, 137) linear-gradient(90deg, rgb(234,76,137), rgb(255,160,60)) repeat scroll 0% 0%' }, []),
         el('filter-row', 'DIV', { x: 40, y: 600, width: 1120, height: 44 },
           { backgroundColor: 'rgb(250, 250, 250)', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'rgb(228, 231, 236)', borderTopLeftRadius: '22px' }, [
             text('filter-label', 'What type of design are you interested in?', { x: 60, y: 612, width: 380, height: 20 })

@@ -7,7 +7,14 @@
 
   // Bounded so a pathological capture cannot freeze the copy, but generous
   // enough for a full-page capture of a heavy product page.
-  const LIMITS = Object.freeze({ nodes: 20000, depth: 60, lines: 40, nameLength: 48 });
+  // `textLength` and `span` bound one node; `nodes`/`depth` bound the whole tree.
+  // Everything here is also listed in the README limits table.
+  const LIMITS = Object.freeze({
+    nodes: 20000, depth: 60, lines: 40, nameLength: 48, textLength: 2000,
+    // Measured coordinates of a real page stay far inside this; a capture with a
+    // 1e9px rect would otherwise be pasted as an unselectable, off-canvas blob.
+    span: 1000000, size: 200000
+  });
   const STORAGE_KEY = "pc_wireframe_v1";
 
   // The three levels the user picks between, in the Viewports popover next to the
@@ -138,6 +145,16 @@
     };
   }
 
+  // Every tone this transform can produce, so re-building a wireframe (the same
+  // capture copied twice, or a level changed in place) does not drift a second time.
+  const OUR_TONES = new Set(Object.values(FILL_RAMP).flat().map(([, tone]) => tone));
+
+  const isNeutral = color => Math.round(color.r) === Math.round(color.g) && Math.round(color.g) === Math.round(color.b);
+  const channelHex = color => {
+    const byte = Math.round(clamp(color.r, 0, 255)).toString(16).padStart(2, "0");
+    return `#${byte}${byte}${byte}`;
+  };
+
   function toneFor(value, level) {
     for (const [limit, tone] of FILL_RAMP[level]) if (value <= limit) return tone;
     return FILL_RAMP[level][FILL_RAMP[level].length - 1][1];
@@ -145,7 +162,11 @@
 
   function fillTone(color, level, backdrop = PAPER) {
     if (!color || color.a < 0.02) return null;
-    return toneFor(luminance(blend(color, backdrop)), level);
+    const seen = blend(color, backdrop);
+    // A tone that is already one of ours is final; re-quantising it would shift a
+    // rebuilt wireframe (Medium #a8a8a8 would become #d2d2d2).
+    if (isNeutral(seen) && OUR_TONES.has(channelHex(seen))) return channelHex(seen);
+    return toneFor(luminance(seen), level);
   }
 
   function textTone(color, backdrop, level) {
@@ -173,7 +194,22 @@
   function borderTone(color, fallback, backdrop = PAPER) {
     const parsed = parseColor(color);
     if (!parsed || parsed.a < 0.02) return fallback;
-    return grayHex(clamp(luminance(blend(parsed, backdrop)), 0.3, 0.85));
+    const seen = blend(parsed, backdrop);
+    // A grey hairline keeps its own lightness (a pale input border should not turn
+    // into a dark rule, and its own tone must not drift when rebuilt).
+    const base = isNeutral(seen) ? clamp(seen.r / 255, 0.3, 0.95) : clamp(luminance(seen), 0.3, 0.85);
+    // An edge only reads if it separates from what it sits on: on a dark band a
+    // dark hairline is invisible, so it is lightened until it shows. A pale
+    // hairline on a light page is the page's own choice and is left alone -
+    // darkening it would invent a border that was not there.
+    const surface = parseColor(backdrop) || parseColor(PAPER);
+    const surfaceLuminance = luminance(surface);
+    if (surfaceLuminance >= 0.5) return grayHex(base);
+    let value = base;
+    for (let attempt = 0; attempt < 6 && contrast(parseColor(grayHex(value)), surface) < 1.6; attempt++) {
+      value = Math.min(0.95, Math.max(value, surfaceLuminance) + 0.12);
+    }
+    return grayHex(value);
   }
 
   function shadowTone(value) {
@@ -184,6 +220,69 @@
   }
 
   const pxNumber = value => /px$/.test(String(value || "")) ? number(value) : null;
+
+  // One rect shape for every node: finite, rounded, and bounded so a pathological
+  // capture cannot be pasted as an off-canvas, unselectable blob.
+  function boundedRect(rect) {
+    return {
+      x: clamp(round(number(rect?.x)), -LIMITS.span, LIMITS.span),
+      y: clamp(round(number(rect?.y)), -LIMITS.span, LIMITS.span),
+      width: clamp(round(number(rect?.width)), 0, LIMITS.size),
+      height: clamp(round(number(rect?.height)), 0, LIMITS.size)
+    };
+  }
+
+  const safeId = value => typeof value === "string" && value
+    ? value.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, LIMITS.nameLength) || undefined
+    : undefined;
+
+  // Text is copied verbatim except for characters that cannot survive a clipboard
+  // round trip (control codes, lone surrogates) and a length bound, so one giant
+  // <pre> cannot bloat the payload past what a paste can handle.
+  function cleanText(value) {
+    const text = typeof value === "string" ? value : "";
+    const stripped = text
+      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+      .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd");
+    return stripped.length > LIMITS.textLength ? `${stripped.slice(0, LIMITS.textLength - 1)}\u2026` : stripped;
+  }
+
+  // `fonts` is a family -> face map in the capture model. Names are kept at High so
+  // the type stack still reads, but a face URL is never shipped: an http(s), data:
+  // or url() value is a page asset, and assets do not belong in a wireframe.
+  function sanitizeFonts(fonts, level) {
+    const safe = value => {
+      if (typeof value !== "string") return undefined;
+      if (/url\(|https?:|^data:|\/\//i.test(value)) return undefined;
+      return value.slice(0, 80);
+    };
+    if (level !== "high") return {};
+    const FACE_FIELDS = ["family", "name", "style", "weight", "stretch"];
+    const cleanFace = face => {
+      if (typeof face === "string") return safe(face);
+      if (!face || typeof face !== "object") return undefined;
+      const out = {};
+      for (const field of FACE_FIELDS) {
+        const value = safe(face[field]);
+        if (value !== undefined) out[field] = value;
+      }
+      return out;
+    };
+    if (Array.isArray(fonts)) {
+      return fonts.slice(0, 32).map(cleanFace).filter(face => face !== undefined);
+    }
+    if (fonts && typeof fonts === "object") {
+      const out = {};
+      for (const [family, face] of Object.entries(fonts).slice(0, 32)) {
+        const name = safe(family);
+        if (name === undefined) continue;
+        const value = cleanFace(face);
+        out[name] = value === undefined ? {} : value;
+      }
+      return out;
+    }
+    return {};
+  }
 
   function normalizeOptions(options = {}) {
     return { level: LEVEL_IDS.has(options.level) ? options.level : "medium" };
@@ -267,18 +366,24 @@
     const { level, rect, backdrop, tag } = context;
     if (!input || typeof input !== "object") return {};
     const styles = { ...input };
-    const gradient = typeof styles.backgroundImage === "string" && /gradient\(/i.test(styles.backgroundImage);
+    // A gradient can arrive through backgroundImage or through the background
+    // shorthand; either way it is a surface that must survive as a light tone.
+    const gradient = ["backgroundImage", "background"].some(key =>
+      typeof styles[key] === "string" && /gradient\(/i.test(styles[key]));
     const paintedBorder = borderWidth(styles) > 0 && styles.borderTopStyle !== "none";
     for (const name of DROPPED_STYLES) delete styles[name];
     delete styles.boxShadow;
 
     // 1. Normalise every colour the page supplied, before any tone of our own is
     //    chosen, so our ramp values are final and never re-quantised.
+    const pageFill = fillTone(parseColor(styles.backgroundColor), level, backdrop);
+    // A border is drawn on the element's own box, so it must read against that
+    // surface, not against the section behind it.
+    const edgeBackdrop = pageFill || backdrop;
     const sideColours = {};
     for (const side of ["Top", "Right", "Bottom", "Left"]) {
-      sideColours[side] = borderTone(styles[`border${side}Color`], "#d0d0d0", backdrop);
+      sideColours[side] = borderTone(styles[`border${side}Color`], "#d0d0d0", edgeBackdrop);
     }
-    const pageFill = fillTone(parseColor(styles.backgroundColor), level, backdrop);
     // Text inherits the colour of the element that paints the surface, so its tone
     // must be judged against that surface, not against the section behind it. A
     // dark quote band would otherwise get dark ink and lose its label entirely.
@@ -293,7 +398,7 @@
         const grey = greyValue(value, textContext, "text");
         if (grey) styles[key] = grey; else delete styles[key];
       } else if (isBorder) {
-        const grey = greyValue(value, context, "border");
+        const grey = greyValue(value, { ...context, backdrop: edgeBackdrop }, "border");
         if (grey) styles[key] = grey; else delete styles[key];
       } else if (COLOUR_KEY.test(key) || COLOUR_KEYS.has(key)) {
         const grey = greyValue(value, context, "shape");
@@ -425,11 +530,10 @@
   function transformDocument(doc, options = {}) {
     const { level } = normalizeOptions(options);
     validateDocument(doc);
-    const stats = { nodes: 0, text: 0, bars: 0, placeholders: 0, truncated: false, dropped: 0 };
-    // A wireframe carries no page assets at all: images, masks and background
-    // pictures are removed before anything can be embedded.
-    doc.assets = {};
-    if (Array.isArray(doc.fonts)) doc.fonts = level === "high" ? doc.fonts : [];
+    const stats = { nodes: 0, emitted: 0, text: 0, bars: 0, placeholders: 0, truncated: false, dropped: 0, hidden: 0, flattened: 0 };
+    // The captured document is never edited: the caller keeps the original, so the
+    // copy is reversible and a second pass cannot inherit the first one's output.
+    const fonts = sanitizeFonts(doc.fonts, level);
 
     // Nodes are rebuilt from a whitelist, never patched in place. The snapshot also
     // carries computedStyles, variableStyles, sourceProps, pseudo-element styles and
@@ -437,25 +541,19 @@
     // a URL we did not intend to ship.
     const element = (node, styles, childNodes) => ({
       nodeType: 1,
-      id: typeof node.id === "string" ? node.id : undefined,
+      id: safeId(node.id),
       tag: String(node.tag || "DIV").toUpperCase(),
       attributes: cleanAttributes(node.attributes),
       styles,
-      rect: {
-        x: number(node.rect?.x), y: number(node.rect?.y),
-        width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
-      },
+      rect: boundedRect(node.rect),
       childNodes
     });
 
     const textNode = (node, text) => ({
       nodeType: 3,
-      id: typeof node.id === "string" ? node.id : undefined,
-      text,
-      rect: {
-        x: number(node.rect?.x), y: number(node.rect?.y),
-        width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
-      },
+      id: safeId(node.id),
+      text: cleanText(text),
+      rect: boundedRect(node.rect),
       lineCount: Math.max(1, Math.round(number(node.lineCount, 1)))
     });
 
@@ -494,16 +592,36 @@
       const children = [];
       const siblings = Array.isArray(node.childNodes) ? node.childNodes : [];
       for (const child of siblings) {
-        if (stats.nodes + children.length >= LIMITS.nodes || depth >= LIMITS.depth) { stats.truncated = true; break; }
+        // The budget counts layers that actually ship: visited-but-dropped nodes
+        // (hidden, flattened, veils) must not eat into it.
+        if (stats.emitted >= LIMITS.nodes || depth >= LIMITS.depth) { stats.truncated = true; break; }
         if (!child || typeof child !== "object") { stats.dropped++; continue; }
         if (child.nodeType === 3) {
           stats.text++;
-          if (level === "low") children.push(...barNodes(child, styles, backdrop, level, stats));
-          else children.push(textNode(child, typeof child.text === "string" ? child.text : ""));
+          if (level === "low") {
+            const bars = barNodes(child, styles, backdrop, level, stats);
+            children.push(...bars);
+            stats.emitted += bars.length;
+          } else {
+            children.push(textNode(child, typeof child.text === "string" ? child.text : ""));
+            stats.emitted++;
+          }
         } else if (child.nodeType === 1) {
           if (isRedundantVeil(child, siblings)) { stats.dropped++; continue; }
           const transformed = walkElement(child, { level, backdrop, depth: depth + 1 });
-          if (transformed) children.push(transformed);
+          if (!transformed) continue;
+          // A zero-area wrapper (display:contents, a collapsed flex item) is not a
+          // layer; its children still are, so lift them into its place.
+          if (transformed.rect.width < 1 && transformed.rect.height < 1) {
+            if (transformed.childNodes.length) {
+              children.push(...transformed.childNodes);
+              stats.emitted += transformed.childNodes.length;
+              stats.flattened++;
+            } else stats.dropped++;
+            continue;
+          }
+          children.push(transformed);
+          stats.emitted++;
         } else stats.dropped++;
       }
       return children;
@@ -527,11 +645,26 @@
 
     function walkElement(node, context) {
       stats.nodes++;
+      const original = node.styles || {};
+      const display = String(original.display || "").toLowerCase();
+      // Nothing on the page paints these, so nothing of them may be pasted: a
+      // display:none menu or a 0-opacity backdrop would otherwise appear as very
+      // real grey boxes with very real (hidden) text in them.
+      if (display === "none" || String(original.opacity ?? "") !== "" && number(original.opacity, 1) === 0) {
+        stats.hidden++;
+        return null;
+      }
+      // visibility:hidden keeps its box but paints nothing, so the whole subtree is
+      // dropped just like display:none. content-visibility:hidden still paints the
+      // box itself; only its contents are skipped.
+      const visibility = String(original.visibility || "").toLowerCase();
+      if (visibility === "hidden" || visibility === "collapse") {
+        stats.hidden++;
+        return null;
+      }
+      const contentHidden = String(original.contentVisibility || "").toLowerCase() === "hidden";
       const tag = String(node.tag || "DIV").toUpperCase();
-      const rect = {
-        x: number(node.rect?.x), y: number(node.rect?.y),
-        width: Math.max(0, number(node.rect?.width)), height: Math.max(0, number(node.rect?.height))
-      };
+      const rect = boundedRect(node.rect);
       const attributes = cleanAttributes(node.attributes);
       const isMediaTag = MEDIA_TAGS.has(tag);
       // A card thumbnail is usually a div with a background image, not an <img>,
@@ -547,7 +680,7 @@
         if (!isMediaTag) {
           // An image-backed box may still hold real content (badges, captions).
           // Keep it, and skip the label so the two cannot collide.
-          const kept = transformChildren(node, placeholder.styles, context.depth, context.backdrop);
+          const kept = contentHidden ? [] : transformChildren(node, placeholder.styles, context.depth, context.backdrop);
           if (kept.length) return element(node, placeholder.styles, kept);
         }
         const children = labelled ? [labelNode({ ...attributes, __tag: tag }, rect, node.id)] : [];
@@ -556,23 +689,27 @@
 
       const originalShadow = typeof node.styles?.boxShadow === "string" ? node.styles.boxShadow : "";
       const styles = rewriteStyles(node.styles || {}, { level, rect, backdrop: context.backdrop, tag, shadow: originalShadow });
-      return element(node, styles, transformChildren(node, styles, context.depth, context.backdrop));
+      const children = contentHidden ? [] : transformChildren(node, styles, context.depth, context.backdrop);
+      return element(node, styles, children);
     }
 
-    doc.root = walkElement(doc.root, { level, backdrop: PAPER, depth: 0 });
+    const root = walkElement(doc.root, { level, backdrop: PAPER, depth: 0 });
+    if (!root) throw new Error("This capture has nothing visible to rebuild.");
     // Deterministic: the same capture and level always produce the same payload.
-    doc.wireframe = { level };
-    return { document: doc, stats, level };
+    // A fresh document, so the capture handed in is left exactly as it was.
+    const document = { ...doc, assets: {}, fonts, root, wireframe: { level } };
+    return { document, stats, level };
   }
 
   function summarize(result) {
     const stats = result?.stats || {};
     return {
       level: result?.level || "medium",
-      nodes: stats.nodes || 0,
+      nodes: stats.emitted ?? stats.nodes ?? 0,
       text: stats.text || 0,
       bars: stats.bars || 0,
       placeholders: stats.placeholders || 0,
+      hidden: stats.hidden || 0,
       truncated: stats.truncated === true,
       blocks: (stats.nodes || 0) - (stats.text || 0)
     };

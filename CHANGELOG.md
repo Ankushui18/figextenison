@@ -24,6 +24,37 @@ entry below must always match (`npm run check` enforces it).
   background image is treated as media; its real children (badges, captions) are
   kept and the media label is skipped so the two cannot overlap.
 
+- **Hidden content is no longer pasted.** A `display:none` menu, an `opacity:0`
+  backdrop or a `visibility:hidden` screen-reader label used to arrive as a very
+  real grey box with very real (hidden) text in it. Such subtrees are dropped and
+  counted; `content-visibility:hidden` keeps its own box and drops only its
+  contents.
+- **The copy is repeatable.** Rebuilding an already-built wireframe used to drift,
+  because our own grey was re-quantised (`#a8a8a8` → `#d2d2d2`). Tones that are
+  already ours are now final, so copying the same capture twice gives the same
+  payload.
+- **Absurd geometry and text are bounded.** A 1e9px rect is clamped instead of
+  pasted off-canvas, a node with no usable geometry is dropped, ids are capped at
+  48 characters and one enormous text run cannot bloat the payload past a paste.
+- **Font names only, never font files.** The capture's `fonts` map can carry a
+  `url`; a wireframe now keeps the family/style/weight names at High and never an
+  `http(s)`, `data:` or `url()` value.
+- **The capture is never edited.** The transform returns a fresh document and
+  leaves the capture you were given alone, so unchecking the option still gives
+  the real page.
+- **Gradients carried by the `background` shorthand** are recognised as surfaces
+  instead of disappearing.
+- **A hairline on a dark band is lightened** so it reads; a pale hairline on a
+  light page is left as the page had it.
+- **The option reports its own state.** If the capture pipeline is missing (a
+  partial or older build) the checkbox says *Unavailable* instead of silently
+  copying the real page, the section re-attaches when the popover is rebuilt, a
+  choice made while storage is loading is no longer overwritten by the saved one,
+  and a copy that stopped at the layer limit says so in the popover hint.
+- **A fallback record is honest.** When one record cannot be rebuilt it is copied
+  as the real page — and the success message no longer claims zero embedded
+  images for that copy.
+
 ### Added
 
 - `scripts/wireframe-preview.js` and `scripts/preview-raster.py` render a
