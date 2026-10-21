@@ -12,7 +12,7 @@
   // Shown in the popover so it is obvious which build is actually loaded: a stale
   // release ZIP that still exposes the checkbox but not the transform is the one
   // failure mode the user cannot otherwise see.
-  const BUILD = Object.freeze({ version: "1.8.4" });
+  const BUILD = Object.freeze({ version: "1.8.5" });
 
   const LIMITS = Object.freeze({
     nodes: 20000, depth: 60, lines: 40, nameLength: 48, textLength: 2000,
