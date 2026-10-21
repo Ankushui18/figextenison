@@ -9,6 +9,11 @@
   // enough for a full-page capture of a heavy product page.
   // `textLength` and `span` bound one node; `nodes`/`depth` bound the whole tree.
   // Everything here is also listed in the README limits table.
+  // Shown in the popover so it is obvious which build is actually loaded: a stale
+  // release ZIP that still exposes the checkbox but not the transform is the one
+  // failure mode the user cannot otherwise see.
+  const BUILD = Object.freeze({ version: "1.8.3" });
+
   const LIMITS = Object.freeze({
     nodes: 20000, depth: 60, lines: 40, nameLength: 48, textLength: 2000,
     // Measured coordinates of a real page stay far inside this; a capture with a
@@ -716,7 +721,7 @@
   }
 
   globalThis.PageCaptureWireframeCore = Object.freeze({
-    LEVELS, LIMITS, STORAGE_KEY, NEUTRAL_FONT,
+    LEVELS, LIMITS, BUILD, STORAGE_KEY, NEUTRAL_FONT,
     normalizeOptions, normalizeSettings, validateDocument, transformDocument, summarize,
     parseColor, luminance, contrast, fillTone, textTone, barTone, grayHex
   });

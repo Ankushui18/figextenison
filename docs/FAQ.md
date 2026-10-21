@@ -55,6 +55,15 @@ it is not copied as a grey box with hidden text in it. `content-visibility:hidde
 keeps its own box and drops only what is inside it. If a copy stops at the layer
 budget, the popover hint says so — capture a section instead of the whole page.
 
+### I ticked it and got the real page. Why?
+
+Almost always a stale build. Open **Viewports** and read the last line of the
+Wireframe section: it says `Wireframe v1.8.3 · hook live`. An older number, or
+`hook missing`, means the folder the browser loaded predates the transform —
+rebuild it with `npm run pack`, load that folder, then reload the extension and
+refresh the page. After a copy the same line reports how many records were
+rebuilt; if it says the copy was the real page, that is the build, not the page.
+
 ### Why does my wireframe look empty?
 
 If the content is drawn into a canvas or WebGL, or lives inside a cross-origin

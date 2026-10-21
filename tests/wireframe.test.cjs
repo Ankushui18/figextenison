@@ -893,6 +893,62 @@ test('The capture handed in is left exactly as it was', () => {
   assert.equal(JSON.stringify(first), JSON.stringify(second));
 });
 
+test('The popover names the build it is running, so a stale ZIP is visible', () => {
+  const env = harness();
+  // The stamp in the source must match the manifest that ships beside it: a ZIP
+  // built from older files shows an older line, which is the point.
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.equal(env.Core.BUILD.version, manifest.version);
+  assert.equal(env.Wireframe.build, manifest.version);
+
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  const hint = () => section.querySelector('.hint').textContent;
+  assert.match(hint(), new RegExp(`Wireframe v${manifest.version} · hook live`));
+  assert.equal(section.getAttribute('data-state'), 'off');
+});
+
+test('A copy that produced the real page is reported as a miss, not as success', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: true, level: 'medium' } } });
+  const host = buildPopoverHost(env.document);
+  env.Wireframe.decoratePopover(host);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const section = host.shadowRoot.querySelector('[data-wireframe-section]');
+  const hint = () => section.querySelector('.hint').textContent;
+
+  // A successful copy reports what it rebuilt and keeps the normal hint.
+  await env.Safety.prepareClipboard([{ type: 'snapshot', id: 'a', h2dJson: JSON.stringify(snapshot()) }], {});
+  assert.deepEqual({ ...env.Wireframe.wasApplied() }, { transformed: 1, snapshots: 1 });
+  assert.equal(env.Wireframe.notApplied(), false);
+  assert.match(hint(), /Last copy rebuilt 1 of 1/);
+  assert.equal(section.getAttribute('data-state'), 'on');
+
+  // Nothing rebuildable: the option is on, the payload is the page. That must be
+  // called out, and it must survive the next popover open.
+  await env.Safety.prepareClipboard([{ type: 'snapshot', id: 'b', h2dJson: '{not json' }], {});
+  assert.deepEqual({ ...env.Wireframe.wasApplied() }, { transformed: 0, snapshots: 1 });
+  assert.equal(env.Wireframe.notApplied(), true);
+  assert.match(hint(), /was the real page, not a wireframe/);
+  assert.match(hint(), /0 of 1/);
+  assert.equal(section.getAttribute('data-state'), 'miss');
+
+  // A later good copy clears the warning again.
+  await env.Safety.prepareClipboard([{ type: 'snapshot', id: 'c', h2dJson: JSON.stringify(snapshot()) }], {});
+  assert.equal(env.Wireframe.notApplied(), false);
+  assert.doesNotMatch(hint(), /was the real page/);
+});
+
+test('With the option off no copy is ever reported as rebuilt', async () => {
+  const env = harness({ storage: { pc_wireframe_v1: { on: false, level: 'medium' } } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await env.Safety.prepareClipboard([{ type: 'snapshot', id: 'a', h2dJson: JSON.stringify(snapshot()) }], {});
+  assert.equal(env.Wireframe.wasApplied(), null);
+  assert.equal(env.Wireframe.notApplied(), false);
+  const written = env.safetyCalls.at(-1).records[0];
+  assert.equal(written.wireframe, undefined, 'the real capture is copied untouched');
+});
+
 /* --------------------------------------------------------------- wiring -- */
 
 test('Wireframe is injected before the toolbar, with no extra toolbar hook', () => {
