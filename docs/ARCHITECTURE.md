@@ -43,6 +43,7 @@ capture back to the worker.
 | `js/canvas-capture.js` | wraps `toBlob` during a capture: replaces a blank (WebGL) read-back with the visible pixels of the same rectangle, scales rasters past 4096px | small, readable |
 | `js/figma-clip.js` | validates a Figma `(figma)` clipboard payload, stores it, writes it back (no DOM at load, no network) | small, readable |
 | `js/figma-import.js` | the importer page controller: optional permission, import, re-copy, delete | small, readable |
+| `js/figma-native.js` | **experimental**: keeps Figma's native clipboard payload instead of overwriting it (figma.com only) | small, readable |
 | `js/canvas-toggle.js` | **experimental**: the Canvas capture ON/OFF switch, its saved state, and the raster explanation | small, readable |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
@@ -87,7 +88,7 @@ command after injection.
 ## Capture pipeline
 
 1. **Trigger.** Toolbar button, keyboard command, or `chrome.action` click.
-2. **Inject.** `background.js` checks the URL and permissions, injects the eleven
+2. **Inject.** `background.js` checks the URL and permissions, injects the thirteen
    files in the order above, and sets the tab's "open" flag.
 3. **Build the model.** `h2d_toolbar.js` walks the DOM in a `requestAnimationFrame`
    (so layout is settled), producing a version-2 snapshot: nodes with
@@ -196,8 +197,27 @@ second workflow.
   (`replaced`, `resized`, `blank`) for 15 seconds; when a new capture lands in
   `Core.capturesKey(tabId)` while the switch is on, the toolbar says the canvas
   arrived as an image. With the switch off it stays silent.
-- **It writes nothing extra.** No RPC, no host permission, no clipboard read, no
-  network. The one background message is the existing `H2D_GET_TAB_ID`.
+- **It writes nothing extra.** No RPC, no host permission, no network. The one
+  background message is the existing `H2D_GET_TAB_ID`.
+
+### Native first, when Figma has the nodes
+
+`js/figma-native.js` guards the single `navigator.clipboard.write` call the bundle
+makes. Both live in the same content-script world, so the guard sees the payload
+that is about to be written and can decide what actually lands on the clipboard.
+
+- **Only on figma.com, only with the switch on.** Anywhere else the guard returns
+  before reading the clipboard, which keeps the privacy surface unchanged.
+- **Figma's bytes win.** If the clipboard holds a `(figma)` payload with a
+  fig-kiwi / fig-jam. / fig-deck container, that exact string is written back, so
+  the paste is native and unmodified. Our own `(figh2d)` payloads and page HTML
+  are never mistaken for it (`js/figma-clip.js` does the validation).
+- **Everything else is the old path.** No Figma copy, or a refused clipboard read,
+  and the ordinary capture is written; `canvas-capture.js` supplies the cropped,
+  WebGL-safe raster and the toolbar labels it as an image.
+- **No synthesis.** The module never fabricates input events or reconstructs
+  nodes: a real Figma copy is the only source of a native payload. The test suite
+  fails if `KeyboardEvent`, `dispatchEvent` or `execCommand` appears in it.
 
 ## Where to change things
 
@@ -212,6 +232,7 @@ second workflow.
 | what a capture contains | the walker in `js/h2d_toolbar.js` + a fixture test |
 | the permission/options flow | `js/core.js`, `js/options.js`, `background.js` |
 | the experimental Canvas capture switch | `js/canvas-toggle.js` (and `tests/canvas-toggle.test.cjs`) |
+| whether a capture keeps Figma's native copy | `decide()` in `js/figma-native.js` (and its test) |
 | what the switch changes per capture | `improve()` and the `toBlob` wrapper in `js/canvas-capture.js` |
 
 ## Invariants worth not breaking

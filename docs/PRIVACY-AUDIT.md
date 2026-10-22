@@ -27,7 +27,7 @@ Review/test date: **23 October 2026**
 - **Storage.** One additional `chrome.storage.local` key
   (`figma_h2d_figma_clips`), newest-first, capped at 12 payloads of ≤16 MB each,
   user-deletable. Existing tray keys keep their per-tab lifetime.
-- **Verification:** `npm test` — **356 checks, 0 failures**, including 18 Figma-copy
+- **Verification:** `npm test` — **371 checks, 0 failures**, including 18 Figma-copy
   and 8 canvas-raster checks; `npm run verify` clean. Browser suites were not
   re-run here (no Playwright/Chromium in this environment); their fixtures and the
   paths they cover are untouched.

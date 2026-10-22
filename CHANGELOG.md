@@ -47,26 +47,27 @@ entry below must always match (`npm run check` enforces it).
 
 ### Experimental (branch only — not released, not merged)
 
-- **One Canvas capture switch.** `js/canvas-toggle.js` adds an ON/OFF switch to
-  the toolbar. On: **Capture design** and **Select element** use the canvas
-  strategy automatically. Off: `toBlob` is passed through untouched, so the
-  behaviour is exactly the build before the canvas work — blank WebGL frames
-  included. State lives in `chrome.storage.local["figma_h2d_canvas_capture"]`,
-  applies without a reload, and the switch explains itself on click.
-- **Rasters explain themselves.** `js/canvas-capture.js` records what the last
-  canvas needed — replaced from the visible pixels, scaled to Figma's paste
-  limit, or blank — and, while the switch is on, the toolbar says the canvas
-  arrived as an image instead of leaving it unexplained.
-- **No native-layer claim.** A canvas exposes no scene graph, so these buttons
-  cannot produce Figma layers from it; encoding pixels into Figma's clipboard
-  channels would still paste as an image node. Native layers remain the
-  options-page importer's job, which is deliberately outside the capture flow.
-  `docs/CANVAS-RESEARCH.md` records the limitation, an editable-versus-image
-  table, and the four browser cases this experiment still needs.
-- **No new surface.** No extra permission, host, RPC, clipboard read or network
-  call; the switch wraps the design-system attach seam instead of touching the
-  generated bundle. This work is **not part of 1.9.0** and must not be merged or
-  tagged as one.
+- **A capture no longer throws Figma's native copy away.** `js/figma-native.js`
+  guards the clipboard write. On figma.com with **Canvas capture** on, a capture
+  first checks the clipboard for a real Figma scene (`(figma)` marker plus a
+  `fig-kiwi` / `fig-jam.` / `fig-deck` container) and, if one is there, writes
+  those same bytes back instead of this extension's HTML. What gets pasted is then
+  Figma's own nodes — frames, text, vectors, images, instances — rather than a
+  page reconstruction with a canvas image inside it.
+- **One keystroke stays unavoidable.** The payload exists only because Figma wrote
+  it, so `Ctrl/Cmd+C` in the editor is required (`Ctrl+A` first for the whole
+  page); an extension cannot make another origin's editor produce it. Synthetic
+  keyboard events are not used. Verifying the payload needs the already-optional
+  `clipboardRead` permission, granted once from the options page.
+- **Everything else is the labelled fallback.** Off the switch, on any other host,
+  without a Figma copy, or without the permission, the ordinary capture is written
+  unchanged and the toolbar says the canvas is an image.
+- **Unverified where it matters.** The automated suite proves the payload is
+  preserved and written back, and that switch-off is untouched; the paste itself
+  has **not** been round-tripped in a browser here. `docs/CANVAS-RESEARCH.md` §11
+  records the determination and the acceptance protocol, including what to check
+  in the layers panel before claiming fidelity. This work is **not part of 1.9.0**
+  and must not be merged or tagged as one.
 
 ## 1.8.5 — a dead toolbar says why
 

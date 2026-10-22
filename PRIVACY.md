@@ -87,8 +87,13 @@ URLs are copied as-is. **Capture code** is intentionally raw: it copies
 - `clipboardWrite` is requested at runtime through the options page; if you deny
   it, automatic copy is skipped and the capture stays in the tray for manual
   **Copy all**.
-- Reading the clipboard is **optional and separate** (`clipboardRead`). It exists
-  for one action: *Import a Figma copy* on the options page. Nothing is read when
+- Reading the clipboard is **optional and separate** (`clipboardRead`). It serves
+  the *Import a Figma copy* page and, on this experimental branch only, the
+  **Canvas capture** switch on figma.com: when that switch is on, each clipboard
+  write the extension is about to make first reads the clipboard once to check
+  whether it holds a Figma scene, and if it does, that scene is what gets written
+  back (so the paste stays editable). Off the switch, or on any other host, the
+  clipboard is never read. Nothing from it is stored or sent anywhere. Nothing is read when
   a page loads, when the toolbar opens, or when a capture runs. On click, the
   clipboard's `text/html` is read once, and it is kept only if it contains Figma's
   `(figma)` marker with a valid container; anything else is discarded without

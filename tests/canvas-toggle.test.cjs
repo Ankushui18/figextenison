@@ -360,7 +360,7 @@ test("The switch is injected before the toolbar and the bundle stays generated",
   assert.ok(order.indexOf("js/canvas-capture.js") < order.indexOf("js/canvas-toggle.js"));
   assert.ok(order.indexOf("js/canvas-toggle.js") < order.indexOf("js/h2d_toolbar.js"));
   assert.equal(order.includes("js/figma-bridge.js"), false, "the separate importer entry is gone from the page");
-  assert.equal(order.includes("js/figma-clip.js"), false, "the importer page loads its own module");
+  assert.ok(order.indexOf("js/figma-clip.js") < order.indexOf("js/figma-native.js"), "the native guard reuses the tested parser");
   const toolbar = read("js/h2d_toolbar.js");
   assert.doesNotMatch(toolbar, /PageCaptureCanvasToggle|figma-bridge/, "no hand edit to the bundle");
 });

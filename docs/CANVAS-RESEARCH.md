@@ -16,12 +16,13 @@ Status: research finished 2026-10-23. **Route A (phase 1) and route D are now
 implemented**: `figma-import.html` + `js/figma-clip.js` keep Figma's own copy, and
 `js/canvas-capture.js` makes the raster honest. Phases 2–4 below are still open.
 
-**Branch experiment (not merged, not released).** The experiment was cut back to
-one switch: **Canvas capture ON/OFF**, mounted by `js/canvas-toggle.js` in the
-toolbar. With it on, **Capture design** and **Select element** use the canvas
-strategy in `js/canvas-capture.js` automatically; with it off, `toBlob` is passed
-through untouched and the behaviour is exactly the pre-canvas build. There is no
-importer panel, no second workflow and no extra step.
+**Branch experiment (not merged, not released).** One switch: **Canvas capture
+ON/OFF**, mounted by `js/canvas-toggle.js`. With it on, **Capture design** and
+**Select element** prefer Figma's native clipboard payload on figma.com
+(`js/figma-native.js`) and fall back to the improved raster everywhere else
+(`js/canvas-capture.js`). With it off, nothing is read and `toBlob` is passed
+through untouched — the pre-canvas build exactly. Section 11 records what that
+does and does not achieve.
 
 ### Can those two buttons produce native layers for canvas content?
 
@@ -375,3 +376,95 @@ click, only with the optional permission granted, discard anything without the
 - `exportAsync` / `ExportSettingsSVG`, `svgOutlineText`: [developers.figma.com](https://developers.figma.com/docs/plugins/api/ExportSettings/)
 - Plugin clipboard constraints (`execCommand`, iframe): [Figma forum](https://forum.figma.com/t/write-to-clipboard-from-custom-plugin/11860), [figma-mcp-link-bridge](https://github.com/asifdotdev/figma-mcp-link-bridge)
 - Clipboard read permission, secure context, focus: [MDN](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Interact_with_the_clipboard), [`Clipboard.read()` + `unsanitized`](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/read), [Chrome permissions](https://developer.chrome.com/docs/extensions/reference/permissions-list)
+
+## 11. Native layered capture of the Figma canvas — determination and experiment
+
+**The requirement.** Capture the design shown on a Figma canvas and reproduce it in
+another Figma file as independently editable nodes: frames, text, vectors, image
+fills, components, nesting and auto-layout intact — not a flattened image.
+
+**The determination.** The extension cannot *read* that scene from the page, and no
+amount of work on the canvas changes that (sections 1 and 5). It can, however,
+stop *destroying* the one payload that does contain it.
+
+| Mechanism | Reachable from a browser extension? | Reads the real node tree? | Creates editable nodes in another file? | Verdict |
+|---|---|---|---|---|
+| DOM / canvas / WebGL / screenshot | Yes | No — a canvas has no scene, only pixels | No — an image node at best | Image fallback only |
+| **Figma Plugin API** (`figma.currentPage.selection`, `getNodeByIdAsync`) | **No.** Plugins run inside Figma's own sandbox for the open file; a page cannot invoke them | Yes, inside Figma | Only by a plugin running in the *target* file, reconstructing nodes (`createNodeFromSvg`, `createText`, `createImage`, `importComponentByKeyAsync`) | A companion plugin product, two runs, a serializer, and no clipboard access — see section 3 |
+| **Figma REST API** | Yes, with a personal token over the network | Yes (`GET /v1/files/:key/nodes`) | **No** — file content is read-only | Conflicts with this extension's no-network, no-account posture; read-only anyway |
+| **Native clipboard `(figma)`** | Yes; verifying it needs the optional `clipboardRead` permission | n/a — it *is* the nodes | **Yes.** Figma itself deserializes the payload on paste | The only supported path, and the one used here |
+
+**The unavoidable part.** The `(figma)` payload is written by Figma's editor as a
+direct consequence of a copy. An extension cannot make another origin's editor
+write it: the clipboard's contents are produced by whoever owns the scene.
+
+- Synthetic `KeyboardEvent` receipts for `Ctrl/Cmd+C` are untrusted and
+  undocumented; whether Figma's handlers honour them is unknown, and they would at
+  best copy the current selection. Not used — `tests/figma-native.test.cjs` fails
+  if `KeyboardEvent`, `dispatchEvent` or `execCommand` appears in the module.
+- So the minimum additional user action is **one copy inside Figma**
+  (`Ctrl/Cmd+A` then `Ctrl/Cmd+C` for the whole page, or select the frames you
+  want). Chrome adds a second, one-time condition: reading the clipboard needs the
+  optional `clipboardRead` permission, and content scripts cannot ask for it —
+  only an extension page can, so it is granted once on the options page.
+
+**What is implemented (`js/figma-native.js`).** The bundle writes its HTML payload
+through `navigator.clipboard.write` in the same isolated world as this module, so a
+guard on that one call can see what is about to be written and replace it. With the
+switch on **and** the host `figma.com`:
+
+1. Read the clipboard once (`Clipboard.read({unsanitized: ["text/html"]})`).
+2. Validate it with the already-tested parser (`js/figma-clip.js`): `(figma)`
+   marker, base64, and a `fig-kiwi` / `fig-jam.` / `fig-deck` container. Our own
+   `(figh2d)` payloads and ordinary page HTML are rejected.
+3. If it is a Figma scene, write **those bytes** back as the clipboard payload. No
+   re-encoding, no reconstruction, no renderer — Figma's own data, which is why the
+   paste is native.
+4. If it is not, the ordinary capture is written unchanged and the toolbar says the
+   canvas is an image.
+5. If the read is refused, the ordinary capture is written and the toolbar explains
+   the permission once.
+
+Off the switch, or on any other host, the guard returns before reading anything.
+
+**What remains unknown, stated plainly.**
+
+- Node-type support is Figma's, not ours: the payload is opaque (a Kiwi container),
+  so this build cannot enumerate or validate node types before the paste. If Figma
+  cannot carry something across files (an instance whose library is not shared, for
+  example), that is Figma's cross-file behaviour.
+- Payloads above 16 MiB are rejected by the existing parser limit.
+- **No browser round-trip has been run in this environment.** There is no Chrome,
+  no Figma session and no network here, so nothing below is claimed as verified.
+
+**Acceptance protocol (must pass before claiming fidelity).**
+
+1. Grant clipboard read once: extension options page → allow.
+2. File A: `Ctrl/Cmd+A` in the canvas, then `Ctrl/Cmd+C`. The browser may ask to
+   allow clipboard access for figma.com; allow it so Figma can write.
+3. Our toolbar → **Canvas capture** on → **Capture design** (or **Select element**
+   on the canvas). Expect: “Figma's native copy kept”.
+4. File B: `Ctrl/Cmd+V`.
+5. Check, in the layers panel: frames as frames, each text run as an editable text
+   layer (type into one and see the glyph change), vectors as vector networks,
+   images as image fills, nested groups intact, auto-layout preserved where it was
+   auto-layout, and instances still instances (or explicitly detached). Compare
+   positions and sizes against File A.
+6. Repeat with the switch **off**: expect the previous behaviour — the page as
+   layers and the canvas as one image — which is the fallback, not the result.
+
+Until steps 3–5 pass on a real file, this branch claims only: *the native payload
+is preserved and written back unchanged*, which the automated tests do assert.
+
+**Smallest viable alternatives, if the paste result disappoints.**
+
+| Alternative | Cost | Editability |
+|---|---|---|
+| Companion Figma plugin: read the selection in File A, rebuild it in File B through the Plugin API | A second artifact, two plugin runs, a serializer for text/vectors/images/auto-layout, component linking via library keys | Real nodes, but reconstructed — fidelity depends on our serializer |
+| REST API read + Figma plugin write | Token, network, an account — against this project's posture | Same as above, plus read-only REST |
+| This branch: keep Figma's own payload | One copy keystroke, one optional permission | Byte-identical nodes, because Figma does the paste |
+| Screenshot | None | **Rejected by the requirement** |
+
+**Sources for this section:** sections 1–3 and 7 above; plus `Clipboard.read()` and
+`unsanitized`, `clipboardRead`, and plugin-vs-page execution boundaries already
+listed under section 10.

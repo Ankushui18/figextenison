@@ -10,7 +10,7 @@ No account, no server, no telemetry, no uploads.</p>
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
   <img src="https://img.shields.io/badge/version-1.9.0-0d99ff" alt="version 1.9.0">
-  <img src="https://img.shields.io/badge/tests-356%20passing-brightgreen" alt="356 checks passing">
+  <img src="https://img.shields.io/badge/tests-371%20passing-brightgreen" alt="371 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -51,12 +51,14 @@ No account, no server, no telemetry, no uploads.</p>
 > **Status: 1.9.0, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
-> **Experimental, branch only.** This branch adds one **Canvas capture ON/OFF**
-> switch to the toolbar. With it on, **Capture design** and **Select element** keep
-> the page as editable layers and copy each canvas as one correctly cropped image
-> (blank WebGL frames recovered, rasters scaled to Figma's 4096px limit). No canvas
-> button can produce native Figma layers — that still needs Figma's own copy. It is
-> not released and not merged. See [docs/CANVAS-RESEARCH.md](docs/CANVAS-RESEARCH.md).
+> **Experimental, branch only.** One **Canvas capture ON/OFF** switch in the
+> toolbar. On **figma.com** with it on, a capture keeps Figma's own native copy —
+> the real nodes, text, vectors and instances — instead of overwriting it with an
+> HTML payload, so the paste is editable. Everywhere else (or when the clipboard
+> holds no Figma copy) it falls back to the page as editable layers plus a
+> correctly cropped canvas image. The one action a browser extension cannot do is
+> make Figma copy its own selection: press `Ctrl/Cmd+C` in Figma first. It is not
+> released and not merged. See [docs/CANVAS-RESEARCH.md](docs/CANVAS-RESEARCH.md).
 
 ---
 
@@ -82,7 +84,7 @@ capture without handing their browsing data to a service.
 | | |
 |---|---|
 | **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, video placeholders and open shadow roots. A canvas is rasterized honestly: cropped to its own box, WebGL read-backs included. |
-| **Canvas capture** (experimental, this branch) | A toolbar switch beside **Capture design** / **Select element**. On: canvases copy as cropped, WebGL-safe images while the rest of the page stays editable layers. Off: exactly the previous behaviour. It never claims canvas layers, because a canvas has none. |
+| **Canvas capture** (experimental, this branch) | A toolbar switch beside **Capture design** / **Select element**. On figma.com, a capture preserves Figma's own native clipboard payload, so what you paste is editable nodes rather than a flattened canvas. Elsewhere, or with no Figma copy on the clipboard, canvases copy as cropped, WebGL-safe images and the rest of the page stays editable layers. Off: exactly the previous behaviour. |
 | **Import a Figma copy** | For content that only exists on a canvas. Select layers in Figma, `Ctrl/Cmd+C`, then import on the options page: the payload is kept locally and can be pasted into any file later. Optional clipboard read, only on click. This is the only route to true native layers, and it is deliberately not part of the capture flow. |
 | **Select element** | Pick one element with the pointer; `↑`/`↓` adjust the selection. Produces the same editable model, scoped to that element. |
 | **Capture scroll area** | Click *anywhere inside* a nested vertical scroller and capture its entire 2,000px+ content, not just the visible slice. |
@@ -128,7 +130,7 @@ injected; injected code is only replaced on reload or navigation.
 ## How a capture works
 
 ```
-click  →  inject 11 scripts  →  walk the DOM in rAF  →  resolve image sources
+click  →  inject 13 scripts  →  walk the DOM in rAF  →  resolve image sources
        →  expand the model (full page / scroll area)  →  serialize + bound the
           UTF-8 size  →  recover missing assets in batches of 64  →  store in the
           tab's tray  →  write one text/html clipboard payload on Copy
@@ -315,6 +317,7 @@ figextenison/
 │   │   ├── wireframe.js         Viewports checkbox, saved choice, copy hook
 │   │   ├── canvas-capture.js    WebGL-safe canvas raster, paste-size guard
 │   │   ├── figma-clip.js        validate/store/re-emit a Figma `(figma)` copy
+│   │   ├── figma-native.js      keeps Figma's native copy instead of overwriting it
 │   │   ├── figma-import.js      the Figma-copy importer page controller
 │   │   ├── canvas-toggle.js     experimental Canvas capture ON/OFF switch
 │   │   ├── h2d_toolbar.js       toolbar, capture engine, serializer, picker
@@ -344,7 +347,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 356 dependency-free checks, no install, ~1s
+npm test          # 371 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -366,12 +369,13 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **356 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **371 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, the
   experimental Canvas capture switch (state, persistence, raster notes,
-  enabled/disabled matrix for both capture actions), locale coverage, no
-  onboarding.
+  enabled/disabled matrix for both capture actions), the native-first clipboard
+  guard (when Figma bytes win, when they never do, permission fallback), locale
+  coverage, no onboarding.
 - **10 Chromium suites** — real toolbar injection, native rich clipboard payloads,
   real 1280/768/393px output, source DOM/scroll/focus preservation, denied-copy
   recovery, cancellation, zero remote requests from fixtures.
@@ -414,6 +418,11 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
 - **Chromium only.** Edge usually works; Firefox and Safari are untested. The
   extension needs MV3 service workers, so Chrome 116+.
 - **Store distribution is not set up.** This is source-distributed today.
+- **Native Figma layers still start with one keystroke in Figma.** A browser
+  extension cannot read the editor's scene graph, so `Ctrl/Cmd+C` inside Figma is
+  what creates the payload; the capture then keeps it instead of replacing it.
+  `Ctrl+A` first selects the whole page. Reading the clipboard also needs the
+  optional permission granted once.
 - **A capture replaces whatever was on the clipboard.** If you had just copied
   layers inside Figma, paste them before capturing, or import the copy first —
   the capture writes its own payload over it.
@@ -429,7 +438,7 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
 | Bottom of the page missing | Old build, or the content is inside a nested scroller → **Capture scroll area** |
 | Responsive copy looks like a desktop | JS-driven layout; capture **Browser** only |
 | Some images missing after paste | Blocked host, 404, or credentials required — see the "not embedded" count |
-| A section pastes as one image, not layers | That region is painted into `<canvas>`/WebGL (charts, maps, video, Figma's own editor) — a canvas has no scene to describe, so it can only ever be pixels. Turn **Canvas capture** on to make that image correct (cropped, WebGL frame recovered); native layers need Figma's own copy |
+| A section pastes as one image, not layers | That region is painted into `<canvas>`/WebGL (charts, maps, video, Figma's own editor) — a canvas has no scene to describe, so it can only ever be pixels. On figma.com, select in Figma, press `Ctrl/Cmd+C`, then capture with **Canvas capture** on and paste: that keeps Figma's native nodes. Elsewhere the switch only makes the image correct |
 | Copy does nothing | Clipboard write denied → use **Copy all** from the tray |
 | Everything is slow on a huge page | Node/CSS budgets; capture a smaller section |
 | Wireframe is empty or mostly blank | The page paints into canvas/WebGL, or the content is inside a cross-origin frame → uncheck **Copy as wireframe** and capture layers instead |

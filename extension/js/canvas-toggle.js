@@ -73,7 +73,7 @@
       if (persist) await chrome.storage.local.set({ [STORAGE_KEY]: enabled }).catch(() => {});
       if (announce) {
         const message = text(statusKey(enabled), enabled
-          ? "Canvas capture on. Canvas regions copy as cropped images; the rest of the page stays editable layers."
+          ? "Canvas capture on. On figma.com, Figma's own copy is kept so the paste is editable; elsewhere canvases copy as cropped images."
           : "Canvas capture off. Canvas regions copy exactly as the page paints them, including blank WebGL frames.");
         try { controller.showTransientMessage?.({ tone: "info", message }, "status"); } catch {}
       }
@@ -135,6 +135,9 @@
           const list = Array.isArray(changes[key].newValue) ? changes[key].newValue : [];
           if (list.length <= seen) return;
           seen = list.length;
+          // On figma.com the native module owns this explanation; two modules
+          // talking at once is how users learn to distrust both.
+          if (globalThis.PageCaptureFigmaNative?.isFigmaHost?.(globalThis.location?.hostname)) return;
           // Say plainly what the capture produced: pixels, not layers.
           const note = Canvas()?.recentRaster?.();
           const message = text(rasterTextKey(note) || "canvasCaptureRasterReplaced",

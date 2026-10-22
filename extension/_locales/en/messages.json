@@ -285,14 +285,14 @@
   },
   "canvasCaptureToggleOn": {
     "message": "Canvas capture: on",
-    "description": "Switch state: canvases are captured with the cropped, WebGL-safe raster path."
+    "description": "Switch state: native Figma copy kept on figma.com, cropped raster elsewhere."
   },
   "canvasCaptureToggleOff": {
     "message": "Canvas capture: off",
     "description": "Switch state: canvases are captured exactly as the page paints them."
   },
   "canvasCaptureEnabledMessage": {
-    "message": "Canvas capture on. Canvas regions copy as cropped images; the rest of the page stays editable layers.",
+    "message": "Canvas capture on. On figma.com, Figma's own copy is kept so the paste is editable; elsewhere canvases copy as cropped images.",
     "description": "Confirmation shown when the switch is turned on."
   },
   "canvasCaptureDisabledMessage": {
@@ -310,5 +310,17 @@
   "canvasCaptureRasterBlank": {
     "message": "Canvas region copied as an empty image: the WebGL frame could not be recovered. Editable layers need Figma's own copy.",
     "description": "Shown after a capture could not recover a canvas."
+  },
+  "figmaNativeKept": {
+    "message": "Figma's native copy kept. Paste with Ctrl/Cmd+V for editable layers; the tray capture is the image fallback.",
+    "description": "Shown when the capture preserved Figma's native clipboard payload instead of overwriting it."
+  },
+  "figmaNativePermission": {
+    "message": "The canvas was copied as an image. To keep Figma's native layers, allow clipboard read once on the extension's options page.",
+    "description": "Shown when clipboard read was refused, so the native payload could not be verified."
+  },
+  "figmaNativeMissing": {
+    "message": "No Figma copy on the clipboard, so the canvas was copied as an image. Select layers in Figma, press Ctrl/Cmd+C, then capture again.",
+    "description": "Shown when the clipboard held no Figma scene while Canvas capture was on."
   }
 }
