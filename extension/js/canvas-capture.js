@@ -1,5 +1,6 @@
-/* Canvas fallbacks for capture. No network, no page modification beyond a
- * temporary, restored toolbar hide.
+/* Canvas fallbacks for capture, used when the toolbar's Canvas capture switch is
+ * ON. Off is the untouched browser call. No network, no page modification beyond
+ * a temporary, restored toolbar hide.
  *
  * Two things a plain `canvas.toBlob` gets wrong in a real capture:
  *
@@ -26,13 +27,25 @@
   // finally block even when the fallback fails.
   const TOOLBAR_HOST_ID = "__figma_h2d_chrome_extension_toolbar__";
   const RASTER_NOTE_TTL = 15000;  // how long a capture may be attributed to a raster
+  const STORAGE_KEY = "figma_h2d_canvas_capture";  // shared with the toolbar switch
   let lastRaster = null;          // what the most recent canvas needed, for the UI
+  let enabled = false;            // off until the switch says otherwise
 
   /** Scale a box to fit `maxSide`, never up. Returns integers. */
   function fitWithin(width, height, maxSide = MAX_SIDE) {
     if (![width, height, maxSide].every(Number.isFinite) || width <= 0 || height <= 0 || maxSide <= 0) return null;
     const scale = Math.min(1, maxSide / Math.max(width, height));
     return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)), scale };
+  }
+
+  /** The switch, and a synchronous setter so a click never races the storage write. */
+  function setEnabled(value) {
+    enabled = Boolean(value);
+    return enabled;
+  }
+
+  function isEnabled() {
+    return enabled;
   }
 
   /**
@@ -171,7 +184,8 @@
     const original = prototype.toBlob;
     if (typeof original !== "function") return false;
     prototype.toBlob = function toBlob(callback, type, quality) {
-      if (typeof callback !== "function") return original.call(this, callback, type, quality);
+      // Off: the untouched browser call, exactly as before this feature existed.
+      if (!enabled || typeof callback !== "function") return original.call(this, callback, type, quality);
       return original.call(this, blob => {
         if (!blob) { callback(blob); return; }
         improve(this, blob).then(result => callback(result || blob), () => callback(blob));
@@ -184,15 +198,29 @@
   globalThis.PageCaptureCanvas = Object.freeze({
     MAX_SIDE,
     RASTER_NOTE_TTL,
+    STORAGE_KEY,
     TOOLBAR_HOST_ID,
     fitWithin,
     isBlank,
     dataUrlToBytes,
+    setEnabled,
+    isEnabled,
     noteRaster,
     recentRaster,
     improve,
     install
   });
 
+  /* Install the wrapper once, but let it decide per call: the switch can be
+   * flipped long after injection, and a reload is not required. */
   if (globalThis.HTMLCanvasElement) install();
+
+  if (typeof chrome !== "undefined" && typeof chrome.storage?.local?.get === "function") {
+    chrome.storage.local.get(STORAGE_KEY)
+      .then(stored => setEnabled(stored?.[STORAGE_KEY] === true))
+      .catch(() => setEnabled(false));
+    chrome.storage.onChanged?.addListener?.((changes, area) => {
+      if (area === "local" && changes[STORAGE_KEY]) setEnabled(changes[STORAGE_KEY].newValue === true);
+    });
+  }
 })();

@@ -16,23 +16,65 @@ Status: research finished 2026-10-23. **Route A (phase 1) and route D are now
 implemented**: `figma-import.html` + `js/figma-clip.js` keep Figma's own copy, and
 `js/canvas-capture.js` makes the raster honest. Phases 2–4 below are still open.
 
-**Branch experiment (not merged, not released).** `js/figma-bridge.js` moves route
-A into the capture flow itself: a **Figma copy** entry appears in the toolbar on
-pages painted on a canvas, and any capture that needed a raster now says so in
-the toolbar instead of arriving as an unexplained image. Three decisions are
-worth recording:
+**Branch experiment (not merged, not released).** The experiment was cut back to
+one switch: **Canvas capture ON/OFF**, mounted by `js/canvas-toggle.js` in the
+toolbar. With it on, **Capture design** and **Select element** use the canvas
+strategy in `js/canvas-capture.js` automatically; with it off, `toBlob` is passed
+through untouched and the behaviour is exactly the pre-canvas build. There is no
+importer panel, no second workflow and no extra step.
 
-- **It hooks a seam, it does not edit the bundle.** `h2d_toolbar.js` is generated,
-  so the bridge wraps the `PageCaptureDesignSystem.attach(controller, …)` call the
-  bundle already makes, and mounts a button into `[data-toolbar-role="tools"]`.
-- **Imported copies stay in the bridge's own list, not the capture tray.** Tray
-  entries are `{type:"snapshot", h2dJson}` and every copy action re-encodes
-  `h2dJson`; a `figma-clip` record there would break Copy and Copy all. The
-  bridge keeps its own "Copy again" list instead.
-- **Reading the clipboard is best-effort twice.** `navigator.clipboard.read` is
-  subject to the host page's permissions policy, and Figma may refuse it, so a
-  hidden `contenteditable` plus `execCommand("paste")` is tried before giving up
-  with an explanation. Neither path adds a network call or a new RPC.
+### Can those two buttons produce native layers for canvas content?
+
+**No.** Not "not yet", and not for lack of effort:
+
+1. **A canvas exposes no scene.** `HTMLCanvasElement` gives pixels
+   (`toBlob`/`getImageData`/`toDataURL`), a context type and dimensions. A
+   `CanvasRenderingContext2D` keeps no record of what was drawn; WebGL exposes
+   buffers and state, not shapes or text. There is no node tree to walk, so no
+   serializer — ours or anyone's — can reconstruct layers from it.
+2. **Native layers only travel through Figma's clipboard.** `(figma)` carries
+   fig-kiwi bytes (a real Figma scene); `(figh2d)` carries an HTML description
+   that Figma's importer converts. Producing either requires a scene model, which
+   is exactly what a canvas does not have.
+3. **Pixels encoded into those channels stay pixels.** Put a screenshot into a
+   `figma`/`figh2d` payload and Figma correctly produces an image node or image
+   fill. Calling that "editable layers" would be a lie, so this build does not.
+4. **The extension cannot make Figma copy for the user.** The clipboard is
+   written by the app that owns the scene. Reading Figma's copy is possible (see
+   route A); *producing* it from a capture click is not. Dispatching a synthetic
+   `Ctrl/Cmd+C` at figma.com is untrusted, undocumented, copies whatever happens
+   to be selected, and does nothing for charts, maps or any other canvas — a
+   fragile hack, not a mechanism.
+
+So the honest outcome of the switch is: **the page stays editable layers and the
+canvas becomes one correctly cropped image fill.** Native Figma layers remain
+available through route A's importer, which stays a separate, optional page —
+never part of the capture flow.
+
+### What is genuinely editable, and what is an image
+
+| Capture | Editable Figma layers | Image fill |
+|---|---|---|
+| Capture design, switch **off** | every DOM node: frames, text, vectors, colours, layout | images and `background-image`; a canvas exactly as the browser read it back (WebGL frames can be blank) |
+| Capture design, switch **on** | the same DOM nodes, unchanged | the same images, plus each canvas **cropped to its own box**, with a blank WebGL frame recovered from the visible pixels and anything past 4096px scaled |
+| Select element, HTML element, either state | the selected subtree and its children | images inside it, as above |
+| Select element on a `<canvas>`, switch **on** | nothing — the selection is one node | one cropped raster of that element |
+| Figma's own copy (options page importer) | **true native layers**, because Figma produced them | — |
+
+### Browser checks this experiment still needs
+
+The unit suite pins the logic, but the paste result is a browser question. Each
+row uses the real toolbar, then pastes into Figma Web:
+
+| Case | Action | Expected |
+|---|---|---|
+| 1 | switch off, Capture design on a page with a WebGL canvas | unchanged from the pre-canvas build; the canvas may paste blank |
+| 2 | switch on, Capture design, same page | identical layers for the page, canvas pastes as one cropped image |
+| 3 | switch off, Select element on a normal card | identical to before the feature |
+| 4 | switch on, Select element on the canvas itself | one cropped image node, no layers, and the toolbar says so |
+
+Rows 2 and 4 are the only places where the raster path is claimed to change
+anything. None of them claim editable canvas content, in either state.
 
 ---
 

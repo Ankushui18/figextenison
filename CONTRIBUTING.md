@@ -26,7 +26,7 @@ Use **Issues → New issue → Bug report**. The template asks for:
 ```bash
 git clone https://github.com/Ankushui18/figextenison.git
 cd figextenison
-npm test          # 353 dependency-free checks, no install step
+npm test          # 356 dependency-free checks, no install step
 npm run check     # version/docs/link hygiene
 npm run verify    # test + check (what CI runs)
 ```

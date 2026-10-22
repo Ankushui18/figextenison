@@ -47,19 +47,26 @@ entry below must always match (`npm run check` enforces it).
 
 ### Experimental (branch only — not released, not merged)
 
-- **The Figma copy entry, in the toolbar.** `js/figma-bridge.js` mounts a
-  **Figma copy** button beside Capture design / Select element on pages painted
-  on a canvas, opens the importer inline, keeps imported copies for later
-  "Copy again", and carries an `Experimental` label. It is off on ordinary pages
-  and can be removed entirely with `chrome.storage.local` key
-  `figma_h2d_figma_bridge: false`.
+- **One Canvas capture switch.** `js/canvas-toggle.js` adds an ON/OFF switch to
+  the toolbar. On: **Capture design** and **Select element** use the canvas
+  strategy automatically. Off: `toBlob` is passed through untouched, so the
+  behaviour is exactly the build before the canvas work — blank WebGL frames
+  included. State lives in `chrome.storage.local["figma_h2d_canvas_capture"]`,
+  applies without a reload, and the switch explains itself on click.
 - **Rasters explain themselves.** `js/canvas-capture.js` records what the last
   canvas needed — replaced from the visible pixels, scaled to Figma's paste
-  limit, or blank — and the toolbar reports it on the next capture, so an image
-  in the tray is no longer unexplained.
-- **No new surface.** No extra permission, host, RPC or network call; the bridge
-  wraps the design-system attach seam instead of touching the generated bundle.
-  This work is **not part of 1.9.0** and must not be merged or tagged as one.
+  limit, or blank — and, while the switch is on, the toolbar says the canvas
+  arrived as an image instead of leaving it unexplained.
+- **No native-layer claim.** A canvas exposes no scene graph, so these buttons
+  cannot produce Figma layers from it; encoding pixels into Figma's clipboard
+  channels would still paste as an image node. Native layers remain the
+  options-page importer's job, which is deliberately outside the capture flow.
+  `docs/CANVAS-RESEARCH.md` records the limitation, an editable-versus-image
+  table, and the four browser cases this experiment still needs.
+- **No new surface.** No extra permission, host, RPC, clipboard read or network
+  call; the switch wraps the design-system attach seam instead of touching the
+  generated bundle. This work is **not part of 1.9.0** and must not be merged or
+  tagged as one.
 
 ## 1.8.5 — a dead toolbar says why
 

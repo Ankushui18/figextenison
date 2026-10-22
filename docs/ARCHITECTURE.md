@@ -43,7 +43,7 @@ capture back to the worker.
 | `js/canvas-capture.js` | wraps `toBlob` during a capture: replaces a blank (WebGL) read-back with the visible pixels of the same rectangle, scales rasters past 4096px | small, readable |
 | `js/figma-clip.js` | validates a Figma `(figma)` clipboard payload, stores it, writes it back (no DOM at load, no network) | small, readable |
 | `js/figma-import.js` | the importer page controller: optional permission, import, re-copy, delete | small, readable |
-| `js/figma-bridge.js` | **experimental**: the toolbar's own Figma-copy entry, raster explanations, and the clipboard fallback | small, readable |
+| `js/canvas-toggle.js` | **experimental**: the Canvas capture ON/OFF switch, its saved state, and the raster explanation | small, readable |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
 
@@ -87,7 +87,7 @@ command after injection.
 ## Capture pipeline
 
 1. **Trigger.** Toolbar button, keyboard command, or `chrome.action` click.
-2. **Inject.** `background.js` checks the URL and permissions, injects the twelve
+2. **Inject.** `background.js` checks the URL and permissions, injects the eleven
    files in the order above, and sets the tab's "open" flag.
 3. **Build the model.** `h2d_toolbar.js` walks the DOM in a `requestAnimationFrame`
    (so layout is settled), producing a version-2 snapshot: nodes with
@@ -173,27 +173,31 @@ Capture design ─► engine builds the snapshot(s) ─► PageCaptureSafety.pre
 - **Fonts by name.** At High the family/style/weight names survive so the type
   stack still reads; a face `url`, `http(s):` or `data:` value never does.
 
-## Experimental: the Figma copy bridge
+## Experimental: the Canvas capture switch
 
-`js/figma-bridge.js` is branch-only work, not part of a release. It exists because
-a canvas region captures as pixels no matter what we do, while Figma's own
-`Ctrl/Cmd+C` payload carries real layers.
+`js/canvas-toggle.js` is branch-only work, not part of a release. One switch, no
+second workflow.
 
+- **One state, two readers.** The switch writes
+  `chrome.storage.local["figma_h2d_canvas_capture"]`; `canvas-capture.js` also
+  listens, so a flip applies without a reload. The click calls
+  `PageCaptureCanvas.setEnabled()` synchronously, so a capture started in the next
+  millisecond cannot read a stale value.
+- **Off is a real passthrough.** The `toBlob` wrapper stays installed (installing
+  happens at injection, before the user has chosen anything) but returns the
+  browser's own call untouched. Off therefore behaves exactly like the build
+  before the canvas work, blank WebGL frames included.
 - **It does not modify the bundle.** `h2d_toolbar.js` calls
   `globalThis.PageCaptureDesignSystem?.attach(controller, …)` once it is mounted;
-  the bridge replaces that global with a wrapper that forwards the call and then
+  the switch replaces that global with a wrapper that forwards the call and then
   attaches itself with the same live controller. Nothing in the generated file
   changes, so regenerating it cannot break this.
-- **It mounts like the other panels.** Own host (`data-h2d-ignore="true"`, closed
-  shadow root), one button inside `[data-toolbar-role="tools"]`, then
-  `controller.updateActionBarLayout()`, with cleanup on
-  `controller.lifecycleAbort.signal`.
 - **It explains rasters.** `canvas-capture.js` records the last canvas outcome
   (`replaced`, `resized`, `blank`) for 15 seconds; when a new capture lands in
-  `Core.capturesKey(tabId)`, the bridge shows that explanation in the toolbar
-  rather than leaving the image unexplained.
-- **It writes nothing extra.** No RPC, no host permission, no network. The one
-  background message is the existing `H2D_GET_TAB_ID`.
+  `Core.capturesKey(tabId)` while the switch is on, the toolbar says the canvas
+  arrived as an image. With the switch off it stays silent.
+- **It writes nothing extra.** No RPC, no host permission, no clipboard read, no
+  network. The one background message is the existing `H2D_GET_TAB_ID`.
 
 ## Where to change things
 
@@ -207,7 +211,8 @@ a canvas region captures as pixels no matter what we do, while Figma's own
 | a new message handler | `handlers` in `js/background.js` **and** a test in `tests/privacy.test.cjs` |
 | what a capture contains | the walker in `js/h2d_toolbar.js` + a fixture test |
 | the permission/options flow | `js/core.js`, `js/options.js`, `background.js` |
-| the experimental Figma-copy entry | `js/figma-bridge.js` (and `tests/figma-bridge.test.cjs`) |
+| the experimental Canvas capture switch | `js/canvas-toggle.js` (and `tests/canvas-toggle.test.cjs`) |
+| what the switch changes per capture | `improve()` and the `toBlob` wrapper in `js/canvas-capture.js` |
 
 ## Invariants worth not breaking
 
