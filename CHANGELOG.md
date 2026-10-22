@@ -4,6 +4,16 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## Unreleased
+
+### Fixed
+
+- The service worker no longer attempts to fetch failed page images from remote
+  hosts. Extension CSP deliberately allows `connect-src 'self'` only, so Chrome
+  blocked those futile recovery requests and logged noisy CSP violations. Images
+  that cannot be embedded locally remain reported as not embedded; the CSP and
+  network permissions stay unchanged.
+
 ## 1.8.5 — a dead toolbar says why
 
 ### Fixed

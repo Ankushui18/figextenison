@@ -126,35 +126,12 @@ async function captureElementPreview(tab, payload) {
   finally { bitmap?.close(); }
 }
 
-// Optional recovery reads only public image assets already referenced by the
-// captured page. It never sends capture HTML, credentials or request bodies.
-// Existing extension CSP remains restrictive; failed reads degrade gracefully.
-async function readImage(url, signal) {
-  if (!Privacy.isPublicAssetUrl(url)) return { url, blob: null, error: "blocked" };
-  try {
-    const response = await fetch(url, {
-      method: "GET", signal, cache: "force-cache", credentials: "omit",
-      redirect: "error", referrerPolicy: "no-referrer"
-    });
-    const mime = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-    const limit = 10 * 1024 * 1024;
-    if (!response.ok || !mime.startsWith("image/") || Number(response.headers.get("content-length")) > limit) {
-      await response.body?.cancel();
-      return { url, blob: null, error: "recovery_failed" };
-    }
-    const reader = response.body?.getReader();
-    if (!reader) return { url, blob: null, error: "recovery_failed" };
-    const chunks = [];
-    let size = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > limit) { await reader.cancel(); return { url, blob: null, error: "recovery_failed" }; }
-      chunks.push(value);
-    }
-    return { url, blob: { type: mime, base64Blob: await toDataUrl(new Blob(chunks, { type: mime }), signal) } };
-  } catch { return { url, blob: null, error: "recovery_failed" }; }
+// Extension-page CSP intentionally limits connect-src to 'self'. Do not try
+// fetching page-hosted URLs from the service worker: Chrome blocks those reads
+// and logs a CSP violation even though the failure is handled. Keep the RPC
+// response shape so captures can report that the image could not be embedded.
+async function readImage(url) {
+  return { url, blob: null, error: Privacy.isPublicAssetUrl(url) ? "recovery_failed" : "blocked" };
 }
 
 const assetJobs = new Map(), cancelledAssetJobs = new Map();

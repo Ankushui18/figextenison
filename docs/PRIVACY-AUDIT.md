@@ -221,7 +221,7 @@ Baseline: the exact delivered **1.7.4 ZIP**, SHA-256 `1efe3f3fe08f6abac063398d49
 
 - After a successful rich clipboard write, the established transient success notice reports the number of image assets embedded and the number **not embedded** across the captures being copied. Rejected/unavailable requests remain failures; no recovery guarantee is implied.
 - The diagnostic is counts only: no image URL, hostname, page text, alt text or raw asset error is placed in UI status. A separate per-asset URL list was not added to avoid exposing private/credential-bearing page URLs. Assets remain in the user-requested local capture/clipboard data as before.
-- Remote worker recovery remains governed by the existing `connect-src 'self'` CSP, GET-only/omitted-credential/redirect restrictions, public-URL validation and image limits. Blocked/unavailable assets are reported as not embedded; they are not fetched by relaxing policy.
+- Remote worker recovery is not attempted: extension-page `connect-src 'self'` blocks page-hosted URLs and Chrome logs a CSP violation for the futile request. Unavailable assets are reported as not embedded. The CSP and permissions remain unchanged.
 
 ### Verification
 
@@ -253,7 +253,7 @@ Baseline: the delivered **1.7.3 ZIP**, SHA-256 `8ec22315c8851e187aab4c63aafd480e
 - A single capture signal now reaches image fetch/response work, SVG external references and collector waits. Per-asset timeouts remain bounded. Abortable FileReader encoding and detached image conversion release handlers/object URLs; cross-origin video conversion only operates on an owned temporary element and captures the source time once. Original page video playback is not played/paused/reloaded by this cleanup. Canvas encoding and other native operations without cancellation APIs may finish internally; abandoned results are ignored rather than committed.
 - Source worker recovery uses **the same H2D_FETCH_ASSETS command** with an optional random requestId/cancel payload. Jobs are scoped to the authenticated sender tab/top frame. Another tab/frame cannot cancel them. Malformed/duplicate IDs are rejected, cancellation-before-registration is remembered briefly, tombstones are bounded to 128/10 seconds, active jobs are removed in finally, and tab closure aborts its jobs. Older payloads remain compatible with their existing five-second worker timeout.
 - HTTP contexts without crypto.randomUUID use crypto.getRandomValues to create an RFC4122-style request ID. IDs do not contain source data. Cancellation messages contain only the ID. No new RPC, Chrome permission, host grant or CSP exception is added.
-- Existing public/sensitive URL checks, omitted recovery credentials, GET-only reads, redirect errors, MIME/10 MiB image limits and service denial remain. **Remote recovery blocked by connect-src self is not unblocked here.** That P2 policy decision requires separate approval; do not confuse valid batching/cancellation with permission to read every remote asset.
+- Existing public/sensitive URL validation and service denial remain. The worker returns unavailable for page-hosted assets without issuing a request, avoiding CSP violation logs. Remote recovery remains disabled; CSP and permissions are not relaxed.
 
 ### Verification
 

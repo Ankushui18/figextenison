@@ -198,27 +198,20 @@ function workerHarness() {
   const sender = { id: 'fixture-extension', tab: { id: 8 }, frameId: 0 };
   return { context, ready, signals, calls, sender, remove: id => removed(id), send: (payload, from = sender) => new Promise(resolve => listener({ cmd: 'H2D_FETCH_ASSETS', payload }, from, resolve)) };
 }
-test('Worker cancellation aborts its own active job and starts no queued image reads', async () => {
-  const h = workerHarness(), requestId = crypto.randomUUID(), pending = h.send({ requestId, urls: Array.from({ length: 20 }, (_, i) => `https://example.com/${i}.png`) }); await h.ready;
-  assert.equal((await h.send({ cancel: requestId })).success, true); await pending; assert.ok(h.signals.every(signal => signal.aborted)); assert.ok(h.calls.length <= 4); assert.equal(vm.runInContext('assetJobs.size', h.context), 0);
+test('Worker declines CSP-blocked asset recovery without attempting a network request', async () => {
+  const h = workerHarness();
+  const result = await h.send({ urls: Array.from({ length: 20 }, (_, i) => `https://example.com/${i}.png`) });
+  assert.equal(result.success, true);
+  assert.ok(result.value.every(asset => asset.blob === null && asset.error === 'recovery_failed'));
+  assert.equal(h.calls.length, 0);
 });
-test('Another tab cannot cancel the source tab\'s asset job', async () => {
-  const h = workerHarness(), requestId = crypto.randomUUID(), pending = h.send({ requestId, urls: ['https://example.com/a.png'] }); await h.ready;
-  await h.send({ cancel: requestId }, { ...h.sender, tab: { id: 9 } }); assert.equal(h.signals[0].aborted, false); await h.send({ cancel: requestId }); await pending;
-});
-test('Duplicate IDs, malformed IDs and iframe senders cannot hijack a recovery operation', async () => {
-  const h = workerHarness(), requestId = crypto.randomUUID(), pending = h.send({ requestId, urls: ['https://example.com/a.png'] }); await h.ready;
-  assert.equal((await h.send({ requestId, urls: ['https://example.com/b.png'] })).success, false);
-  assert.equal((await h.send({ cancel: requestId }, { ...h.sender, frameId: 1 })).success, false);
-  assert.equal((await h.send({ cancel: 'bad' })).success, false); assert.equal((await h.send({ requestId: 'bad', urls: [] })).success, false);
-  await h.send({ cancel: requestId }); await pending;
-});
-test('Cancellation arriving before registration prevents the queued job from starting', async () => {
-  const h = workerHarness(), requestId = crypto.randomUUID(); await h.send({ cancel: requestId }); const result = await h.send({ requestId, urls: ['https://example.com/a.png'] }); assert.equal(result.success, true); assert.equal(h.calls.length, 0);
-});
-test('Tab removal aborts active worker asset reads and clears per-tab tombstones', async () => {
-  const h = workerHarness(), requestId = crypto.randomUUID(), pending = h.send({ requestId, urls: ['https://example.com/a.png'] }); await h.ready; await h.send({ cancel: crypto.randomUUID() }); h.remove(8); await pending;
-  assert.equal(h.signals[0].aborted, true); assert.equal(vm.runInContext('assetJobs.size', h.context), 0); assert.equal(vm.runInContext('cancelledAssetJobs.size', h.context), 0);
+test('Recovery RPC still rejects malformed and unauthorized requests', async () => {
+  const h = workerHarness();
+  assert.equal((await h.send({ urls: ['https://example.com/a.png'] }, { ...h.sender, frameId: 1 })).success, false);
+  for (const payload of [{ cancel: 'bad' }, { requestId: 'bad', urls: [] }, { urls: 'invalid' }]) {
+    assert.equal((await h.send(payload)).success, false);
+  }
+  assert.equal(h.calls.length, 0);
 });
 test('Worker-side FileReader encoding is also cancellable', async () => {
   const h = workerHarness(); let entered, reader; const ready = new Promise(resolve => { entered = resolve; });
