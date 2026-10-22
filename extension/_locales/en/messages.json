@@ -322,5 +322,17 @@
   "figmaNativeMissing": {
     "message": "No Figma copy on the clipboard, so the canvas was copied as an image. Select layers in Figma, press Ctrl/Cmd+C, then capture again.",
     "description": "Shown when the clipboard held no Figma scene while Canvas capture was on."
+  },
+  "figmaNativeNoticeTitle": {
+    "message": "Canvas capture needs Figma's copy",
+    "description": "Title of the persistent in-page notice shown when no native Figma payload was found."
+  },
+  "figmaNativeRetry": {
+    "message": "Capture again",
+    "description": "Button that re-runs Capture design after the user copied in Figma."
+  },
+  "figmaNativeDismiss": {
+    "message": "Dismiss",
+    "description": "Button that hides the canvas-capture notice."
   }
 }

@@ -9,7 +9,7 @@ that drive the real extension with Playwright.
 npm test          # node --test tests/*.test.cjs
 ```
 
-**371 checks, 0 dependencies, ~1 second.** No install step, no browser.
+**374 checks, 0 dependencies, ~1 second.** No install step, no browser.
 
 | File | Covers |
 |---|---|
@@ -25,8 +25,8 @@ npm test          # node --test tests/*.test.cjs
 | `tests/no-onboarding.test.cjs` | no wizard/onboarding, every locale key resolves |
 | `tests/figma-clip.test.cjs` | `(figma)` payload validation (magic, base64, metadata), refusal of page HTML and `(figh2d)`, storage cap/dedupe, clipboard read/write fallbacks, importer wiring, optional permission |
 | `tests/canvas-capture.test.cjs` | raster scaling, blank-frame detection, `data:` decoding without `fetch`, pass-through guarantees, single install, frame-0-only region RPC, raster notes and their 15s window, and the enabled/disabled matrix for **both** capture actions (cropped recovery, 4096px scaling, untouched painted canvas) |
-| `tests/figma-native.test.cjs` | the native-first guard: a Figma scene wins only with the switch on and only on figma.com, our own `(figh2d)` payloads and page HTML are never treated as native, switch-off never reads the clipboard, refused reads explain once, no synthetic key events, no network, no new RPC |
-| `tests/canvas-toggle.test.cjs` | the experimental switch: default off, persistence, one-shot mounting, sync across tabs, raster explanations only while on, passthrough when off, no clipboard read, no new RPC, locale coverage |
+| `tests/figma-native.test.cjs` | the native-first guard: a Figma scene wins only with the switch on and only on figma.com, our own `(figh2d)` payloads and page HTML are never treated as native, switch-off never reads the clipboard, refused reads fall back to a paste command and otherwise explain once, no synthetic key events, no network, no new RPC |
+| `tests/canvas-toggle.test.cjs` | the experimental switch: default off, persistence, one-shot mounting, sync across tabs, raster explanations only while on, the persistent "needs Figma's copy" notice (retry, dismiss, removed when the switch goes off), passthrough when off, no clipboard read, no new RPC, locale coverage |
 
 These tests load the shipped files directly (`extension/js/*.js`) into a `vm`
 context, so they fail when the runtime drifts from the documented behaviour.

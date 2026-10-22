@@ -21,6 +21,7 @@
   const ATTACHED = new WeakSet();
 
   const Canvas = () => globalThis.PageCaptureCanvas;
+  let activeController = null;   // last attached toolbar, for cross-module notices
 
   /* ---------- pure helpers (unit-tested) ---------- */
 
@@ -42,6 +43,13 @@
     return enabled ? "canvasCaptureEnabledMessage" : "canvasCaptureDisabledMessage";
   }
 
+  /** Which explanation the in-page notice should carry, if any. */
+  function noticeKeys(kind) {
+    if (kind === "no-native") return { title: "figmaNativeNoticeTitle", body: "figmaNativeMissing" };
+    if (kind === "permission") return { title: "figmaNativeNoticeTitle", body: "figmaNativePermission" };
+    return null;
+  }
+
   function rasterTextKey(note) {
     if (note?.kind === "replaced") return "canvasCaptureRasterReplaced";
     if (note?.kind === "resized") return "canvasCaptureRasterResized";
@@ -51,6 +59,20 @@
 
   /* ---------- toolbar integration ---------- */
 
+  const NOTICE_STYLE = `
+    :host { all: initial; }
+    .card { display: flex; flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box;
+      background: #2c2c2c; color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 12px; box-shadow: 0 8px 28px #0006; font: 12px/1.45 var(--ui-font, Inter, system-ui, sans-serif); }
+    strong { font-size: 13px; font-weight: 550; }
+    p { margin: 0; color: rgba(255,255,255,.65); }
+    .row { display: flex; gap: 8px; }
+    button { font: inherit; color: inherit; border: 0; border-radius: 5px; height: 28px; padding: 0 10px;
+      cursor: pointer; background: rgba(255,255,255,.08); }
+    button.primary { background: #0d99ff; color: #fff; font-weight: 550; }
+    button:focus-visible { outline: 2px solid #0d99ff; outline-offset: 2px; }
+  `;
+
   const ICON = "M3 3.5A1.5 1.5 0 0 1 4.5 2h7A1.5 1.5 0 0 1 13 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 12.5zm1 0v6.1l2.4-2.4a1 1 0 0 1 1.42 0L10 9.4l.62-.62a1 1 0 0 1 1.4 0l.98.98V3.5a.5.5 0 0 0-.5-.5h-7a.5.5 0 0 0-.5.5M4 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5v-.09l-1.69-1.69-.62.62a1 1 0 0 1-1.41 0L6.4 9.45 4 11.85zM6.25 5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5";
 
   function attach(controller) {
@@ -58,9 +80,11 @@
     if (globalThis.self !== globalThis.top) return;
     if (typeof chrome === "undefined" || !chrome.runtime?.id) return;
     ATTACHED.add(controller);
+    activeController = { notice: showNotice, hideNotice };
 
     const signal = controller.lifecycleAbort.signal;
     let button, observer, enabled = false, tabId = null, seen = 0;
+    let noticeHost, noticeRoot, noticeKind = "";
 
     const text = (key, fallback) => {
       try { return (key && chrome.i18n?.getMessage?.(key)) || fallback; } catch { return fallback; }
@@ -69,6 +93,7 @@
     async function setEnabled(value, { announce = false, persist = true } = {}) {
       enabled = Boolean(value);
       Canvas()?.setEnabled?.(enabled);
+      if (!enabled) hideNotice();
       paint();
       if (persist) await chrome.storage.local.set({ [STORAGE_KEY]: enabled }).catch(() => {});
       if (announce) {
@@ -87,6 +112,71 @@
       // A ring rather than a background: the toolbar's own hover style still wins.
       button.style.boxShadow = enabled ? "inset 0 0 0 1px rgba(13,153,255,.9)" : "none";
       button.style.color = enabled ? "#8ccfff" : "rgba(255,255,255,.9)";
+    }
+
+    /**
+     * A capture on figma.com without Figma's copy is a picture of the page, and
+     * saying so once in a toast is not enough — people paste it and wonder why
+     * the design is flat. This notice stays until it is acted on or dismissed.
+     */
+    function positionNotice() {
+      const rect = controller.toolbarEl?.getBoundingClientRect?.();
+      if (!noticeHost || !rect) return;
+      const width = 330;
+      noticeHost.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, rect.left))}px`;
+      noticeHost.style.bottom = `${Math.max(8, innerHeight - rect.top + 10)}px`;
+    }
+
+    function hideNotice() {
+      noticeHost?.remove();
+      noticeHost = null;
+      noticeRoot = null;
+      noticeKind = "";
+    }
+
+    function showNotice(kind) {
+      const keys = noticeKeys(kind);
+      if (!keys || signal.aborted) return;
+      noticeKind = kind;
+      if (!noticeHost) {
+        noticeHost = document.createElement("page-capture-canvas-notice");
+        noticeHost.id = "__figma_h2d_canvas_notice__";
+        noticeHost.setAttribute("data-h2d-ignore", "true");
+        Object.assign(noticeHost.style, { position: "fixed", zIndex: "2147483647", width: "330px", maxWidth: "calc(100vw - 16px)" });
+        noticeRoot = noticeHost.attachShadow({ mode: "closed" });
+        (document.body || document.documentElement).append(noticeHost);
+      }
+      const style = document.createElement("style");
+      style.textContent = NOTICE_STYLE;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.setAttribute("role", "dialog");
+      card.setAttribute("aria-label", text(keys.title, "Canvas capture needs Figma's copy"));
+      const title = document.createElement("strong");
+      title.textContent = text(keys.title, "Canvas capture needs Figma's copy");
+      const body = document.createElement("p");
+      body.textContent = text(keys.body, kind === "permission"
+        ? "Clipboard read is off, so this capture is a picture. Allow it once in the extension's options page to keep Figma's native layers."
+        : "Select the frames on the canvas, press Ctrl/Cmd+C, then capture again. The copy in the tray is a picture, not the design.");
+      const row = document.createElement("div");
+      row.className = "row";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "primary";
+      retry.textContent = text("figmaNativeRetry", "Capture again");
+      retry.addEventListener("click", event => {
+        event.stopPropagation();
+        hideNotice();
+        try { controller.dispatchActionById?.("capture_page"); } catch {}
+      });
+      const dismiss = document.createElement("button");
+      dismiss.type = "button";
+      dismiss.textContent = text("figmaNativeDismiss", "Dismiss");
+      dismiss.addEventListener("click", event => { event.stopPropagation(); hideNotice(); });
+      row.append(retry, dismiss);
+      card.append(title, body, row);
+      noticeRoot.replaceChildren(style, card);
+      positionNotice();
     }
 
     function mount() {
@@ -162,6 +252,7 @@
 
     signal.addEventListener("abort", () => {
       observer?.disconnect();
+      hideNotice();
       button?.remove();
     }, { once: true });
 
@@ -176,8 +267,11 @@
     nextEnabled,
     labelKey,
     statusKey,
+    noticeKeys,
     rasterTextKey,
-    attach
+    attach,
+    notice: kind => activeController?.notice(kind),
+    hideNotice: () => activeController?.hideNotice()
   });
 
   /**

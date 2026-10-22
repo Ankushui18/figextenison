@@ -20,7 +20,7 @@ const H2D_HTML = '<span data-h2d="(figh2d)"><!--(figh2d)eyJ2ZXJzaW9uIjoyfQ==(/fi
 const PAGE_HTML = '<div><p>Just a web page</p></div>';
 
 function harness({ enabled = true, hostname = 'www.figma.com', clipboardHtml = NATIVE_HTML, readError = null } = {}) {
-  const calls = { read: 0, writes: [], messages: [], requested: [] };
+  const calls = { read: 0, writes: [], messages: [], notices: [], hidden: 0 };
   const Clip = {
     readHtml: async () => {
       calls.read++;
@@ -40,6 +40,10 @@ function harness({ enabled = true, hostname = 'www.figma.com', clipboardHtml = N
     location: { hostname },
     PageCaptureFigmaClip: Clip,
     PageCaptureDesignSystem: { attach: () => 'attached' },
+    PageCaptureCanvasToggle: {
+      notice: kind => calls.notices.push(kind),
+      hideNotice: () => { calls.hidden++; }
+    },
     chrome: {
       i18n: { getMessage: () => '' },
       storage: {
@@ -156,8 +160,8 @@ test('A refused clipboard read degrades to the ordinary capture and explains onc
   await env.clipboard.write([item()]);
   await settle();
   assert.equal(env.calls.writes.length, 2, 'both writes still happen');
-  assert.equal(controller.messages.length, 1, 'the limitation is explained once, not on every capture');
-  assert.match(controller.messages[0].message, /copied as an image/);
+  assert.deepEqual(env.calls.notices, ['permission'], 'the limitation is explained once, not on every capture');
+  assert.equal(controller.messages.length, 0, 'no toast competes with the persistent notice');
 });
 
 test('Success and missing-copy states each explain themselves on the toolbar', async () => {
@@ -171,6 +175,8 @@ test('Success and missing-copy states each explain themselves on the toolbar', a
   assert.equal(controller.messages.length, 1);
   assert.equal(controller.messages[0].tone, 'success');
   assert.match(controller.messages[0].message, /native copy kept/i);
+  assert.deepEqual(env.calls.notices, [], 'success needs no notice');
+  assert.equal(env.calls.hidden, 1, 'a stale notice is cleared when native wins');
 
   const second = harness({ clipboardHtml: PAGE_HTML });
   const controller2 = makeController();
@@ -178,7 +184,7 @@ test('Success and missing-copy states each explain themselves on the toolbar', a
   second.Native.attach(controller2);
   await second.clipboard.write([item()]);
   await settle();
-  assert.match(controller2.messages[0].message, /No Figma copy on the clipboard/);
+  assert.deepEqual(second.calls.notices, ['no-native'], 'a picture of the page is labelled as one');
 });
 
 test('The guard installs once and survives a second install call', () => {
@@ -217,7 +223,8 @@ test('Without a clipboard API the guard steps aside instead of throwing', () => 
 test('No synthetic keyboard events, no network, no new RPC', () => {
   const source = read('js/figma-native.js');
   const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  assert.doesNotMatch(code, /KeyboardEvent|dispatchEvent|execCommand/, 'the payload must come from Figma, not from faked input');
+  assert.doesNotMatch(code, /KeyboardEvent|dispatchEvent|execCommand\s*\(\s*["']copy/, 'the payload must come from Figma, not from faked input');
+  assert.match(code, /execCommand\("paste"\)/, 'reading the clipboard with a paste command is allowed');
   assert.doesNotMatch(code, /fetch\(|XMLHttpRequest|sendBeacon/);
   assert.doesNotMatch(code, /sendMessage/, 'no background message is needed for this');
   const urls = Array.from(code.matchAll(/https?:\/\/[^\s"']+/g), match => match[0]);
@@ -239,7 +246,8 @@ test('Only one module explains a capture on figma.com', () => {
 
 test('Every string the native path shows exists in the locale file', () => {
   const messages = JSON.parse(read('_locales/en/messages.json'));
-  const keys = new Set(Array.from(read('js/figma-native.js').matchAll(/"(figmaNative[A-Za-z]+)"/g), match => match[1]));
-  assert.ok(keys.size >= 3);
+  const source = read('js/figma-native.js') + read('js/canvas-toggle.js');
+  const keys = new Set(Array.from(source.matchAll(/"(figmaNative[A-Za-z]+)"/g), match => match[1]));
+  assert.ok(keys.size >= 6, `expected the notice copy too, found ${[...keys].join(', ')}`);
   for (const key of keys) assert.ok(messages[key], `${key} is missing from messages.json`);
 });

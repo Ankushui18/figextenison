@@ -57,6 +57,43 @@
     return { mode: "native", reason: "native", bytes: info.bytes, magic: info.magic };
   }
 
+  /**
+   * figma.com controls its own Permissions-Policy, and `navigator.clipboard.read`
+   * is subject to it. When the async read is refused, a paste command into a
+   * hidden editable still yields `text/html` while the extension holds
+   * `clipboardRead` — and it keeps the `(figma)` comment intact.
+   */
+  function pasteIntoHiddenField(context = globalThis) {
+    const doc = context.document;
+    if (!doc?.body || typeof doc.execCommand !== "function") return "";
+    let holder;
+    try {
+      holder = doc.createElement("div");
+      holder.setAttribute("contenteditable", "true");
+      holder.setAttribute("data-h2d-ignore", "true");
+      Object.assign(holder.style, { position: "fixed", left: "-9999px", top: "0", opacity: "0", pointerEvents: "none" });
+      doc.body.append(holder);
+      holder.focus({ preventScroll: true });
+      context.getSelection?.()?.selectAllChildren(holder);
+      if (!doc.execCommand("paste")) return "";
+      const html = holder.innerHTML;
+      return typeof html === "string" ? html : "";
+    } catch { return ""; }
+    finally { holder?.remove(); }
+  }
+
+  /** Async read first, then the paste command. Throws the typed clip error. */
+  async function readClipboardHtml(context = globalThis, clip = Clip()) {
+    try {
+      return await clip.readHtml(context.navigator);
+    } catch (error) {
+      if (error?.code !== "clipboard_denied" && error?.code !== "clipboard_unavailable") throw error;
+      const html = pasteIntoHiddenField(context);
+      if (html) return html;
+      throw error;
+    }
+  }
+
   /** The clipboard item that keeps Figma's own bytes untouched. */
   function nativeItem(html, ClipboardItemLike = globalThis.ClipboardItem) {
     if (typeof ClipboardItemLike !== "function" || typeof html !== "string" || html.length === 0) return null;
@@ -69,7 +106,7 @@
     clipboard = globalThis.navigator?.clipboard,
     storage = globalThis.chrome?.storage?.local,
     location = globalThis.location,
-    readHtml = () => Clip()?.readHtml?.(globalThis.navigator),
+    readHtml = () => readClipboardHtml(),
     detect = html => Clip()?.detect?.(html) || null,
     ClipboardItemLike = globalThis.ClipboardItem,
     now = () => Date.now()
@@ -158,16 +195,18 @@
     };
     const guard = globalThis.__h2dNativeGuard__ || (globalThis.__h2dNativeGuard__ = install());
     if (!guard || typeof guard !== "object") return;
+    const ui = () => globalThis.PageCaptureCanvasToggle;
     guard.onExplain = (kind, decision) => {
-      const message = kind === "native"
-        ? text("figmaNativeKept", `Figma's native copy kept (${Math.round((decision?.bytes || 0) / 1024)} kB). Paste with Ctrl/Cmd+V for editable layers.`)
-        : kind === "permission"
-          ? text("figmaNativePermission", "The canvas was copied as an image. To keep Figma's native layers, allow clipboard read once on the extension's options page.")
-          : kind === "no-native"
-            ? text("figmaNativeMissing", "No Figma copy on the clipboard, so the canvas was copied as an image. Select layers in Figma, press Ctrl/Cmd+C, then capture again.")
-            : "";
-      if (!message) return;
-      try { controller.showTransientMessage?.({ tone: kind === "native" ? "success" : "info", message }, "status"); } catch {}
+      if (kind === "native") {
+        // The one case worth a toast: it worked, and here is what to do next.
+        ui()?.hideNotice?.();
+        const message = text("figmaNativeKept", `Figma's native copy kept (${Math.round((decision?.bytes || 0) / 1024)} kB). Paste with Ctrl/Cmd+V for editable layers.`);
+        try { controller.showTransientMessage?.({ tone: "success", message }, "status"); } catch {}
+        return;
+      }
+      // A picture of the page must never look like the design: keep a notice up
+      // until the user copies in Figma or dismisses it.
+      if (kind === "permission" || kind === "no-native") ui()?.notice?.(kind);
     };
   }
 
@@ -179,6 +218,8 @@
     hostOf,
     decide,
     nativeItem,
+    readClipboardHtml,
+    pasteIntoHiddenField,
     install,
     attach
   });

@@ -422,10 +422,17 @@ switch on **and** the host `figma.com`:
    paste is native.
 4. If it is not, the ordinary capture is written unchanged and the toolbar says the
    canvas is an image.
-5. If the read is refused, the ordinary capture is written and the toolbar explains
-   the permission once.
+5. If the read is refused, the ordinary capture is written and a **persistent
+   notice** says how to fix it once (allow clipboard read on the options page).
+6. If the clipboard simply holds no Figma copy, the ordinary capture is written and
+   the same notice explains the missing step, with a **Capture again** button that
+   re-runs Capture design — so the picture is labelled as a picture instead of
+   being mistaken for the design.
 
 Off the switch, or on any other host, the guard returns before reading anything.
+The read itself is best-effort twice: `navigator.clipboard.read({unsanitized})`
+first, then a paste command into a hidden off-screen field, because figma.com sets
+its own Permissions-Policy and need not allow the asynchronous clipboard read.
 
 **What remains unknown, stated plainly.**
 
@@ -443,7 +450,9 @@ Off the switch, or on any other host, the guard returns before reading anything.
 2. File A: `Ctrl/Cmd+A` in the canvas, then `Ctrl/Cmd+C`. The browser may ask to
    allow clipboard access for figma.com; allow it so Figma can write.
 3. Our toolbar → **Canvas capture** on → **Capture design** (or **Select element**
-   on the canvas). Expect: “Figma's native copy kept”.
+   on the canvas). Expect: “Figma's native copy kept”. If instead the *needs
+   Figma's copy* notice appears, the clipboard did not hold a Figma scene — copy
+   again in the canvas and press **Capture again** on the notice.
 4. File B: `Ctrl/Cmd+V`.
 5. Check, in the layers panel: frames as frames, each text run as an editable text
    layer (type into one and see the glyph change), vectors as vector networks,

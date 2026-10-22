@@ -59,9 +59,13 @@ entry below must always match (`npm run check` enforces it).
   page); an extension cannot make another origin's editor produce it. Synthetic
   keyboard events are not used. Verifying the payload needs the already-optional
   `clipboardRead` permission, granted once from the options page.
-- **Everything else is the labelled fallback.** Off the switch, on any other host,
-  without a Figma copy, or without the permission, the ordinary capture is written
-  unchanged and the toolbar says the canvas is an image.
+- **Everything else is the labelled fallback — on screen, not just in a toast.**
+  When figma.com with the switch on produces no native payload, a persistent notice
+  says the capture is a picture and offers **Capture again** for after you copy; it
+  disappears when native capture succeeds or the switch goes off. The read is
+  best-effort twice — async clipboard read, then a paste command into a hidden
+  field — because figma.com sets its own Permissions-Policy. A refused read is
+  explained once, with the one-time fix.
 - **Unverified where it matters.** The automated suite proves the payload is
   preserved and written back, and that switch-off is untouched; the paste itself
   has **not** been round-tripped in a browser here. `docs/CANVAS-RESEARCH.md` §11

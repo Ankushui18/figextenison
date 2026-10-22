@@ -163,7 +163,8 @@ function makeController() {
     lifecycleAbort: new AbortController(),
     updateActionBarLayout() { controller.layouts++; },
     showTransientMessage(message) { controller.messages.push(message); },
-    dispatchActionById() {},
+    dispatchActionById(id) { controller.dispatched.push(id); },
+    dispatched: [],
     layouts: 0,
     messages: []
   };
@@ -320,6 +321,53 @@ test("Nothing is read from the clipboard and no new RPC is added", async () => {
   assert.doesNotMatch(code, /fetch\(|XMLHttpRequest|sendBeacon/);
   const urls = Array.from(code.matchAll(/https?:\/\/[^\s"']+/g), match => match[0]);
   assert.deepEqual(urls.filter(url => url !== "http://www.w3.org/2000/svg"), [], "no remote URL is reachable from the switch");
+});
+
+/* -------------------------------------------------------------- notice -- */
+
+test("Notice copy exists only for the two situations worth stopping for", () => {
+  const env = harness();
+  const plain = value => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(env.Toggle.noticeKeys("no-native")), { title: "figmaNativeNoticeTitle", body: "figmaNativeMissing" });
+  assert.deepEqual(plain(env.Toggle.noticeKeys("permission")), { title: "figmaNativeNoticeTitle", body: "figmaNativePermission" });
+  assert.equal(env.Toggle.noticeKeys("native"), null);
+  assert.equal(env.Toggle.noticeKeys(null), null);
+});
+
+test("A picture of the page gets a persistent notice, not a passing toast", async () => {
+  const env = harness({ stored: { figma_h2d_canvas_capture: true } });
+  const controller = makeController();
+  env.sandbox.PageCaptureDesignSystem.attach(controller);
+  await settle();
+  env.Toggle.notice("no-native");
+  const host = env.doc.body.children.find(child => child.id === "__figma_h2d_canvas_notice__");
+  assert.ok(host, "the notice has its own host");
+  assert.equal(host.getAttribute("data-h2d-ignore"), "true", "captures skip it");
+  assert.ok(host.shadowRoot.textContent.includes("Canvas capture needs Figma's copy"));
+  assert.ok(host.shadowRoot.textContent.includes("Ctrl/Cmd+C"), "it says exactly what to press");
+
+  const retry = host.shadowRoot.querySelectorAll("button")[0];
+  retry.dispatch("click");
+  assert.deepEqual(controller.dispatched, ["capture_page"], "one click re-runs the capture");
+  assert.ok(!env.doc.body.children.some(child => child.id === "__figma_h2d_canvas_notice__"), "and clears itself");
+});
+
+test("The notice can be dismissed, and dies with the switch", async () => {
+  const env = harness({ stored: { figma_h2d_canvas_capture: true } });
+  const controller = makeController();
+  env.sandbox.PageCaptureDesignSystem.attach(controller);
+  await settle();
+  env.Toggle.notice("permission");
+  let host = env.doc.body.children.find(child => child.id === "__figma_h2d_canvas_notice__");
+  assert.ok(host.shadowRoot.textContent.includes("options page"), "the permission case names the one-time fix");
+  host.shadowRoot.querySelectorAll("button")[1].dispatch("click");
+  assert.ok(!env.doc.body.children.some(child => child.id === "__figma_h2d_canvas_notice__"));
+
+  env.Toggle.notice("no-native");
+  assert.ok(env.doc.body.children.some(child => child.id === "__figma_h2d_canvas_notice__"));
+  controller.tools.querySelector("[data-canvas-toggle]").dispatch("click");
+  await settle();
+  assert.ok(!env.doc.body.children.some(child => child.id === "__figma_h2d_canvas_notice__"), "switching off removes it");
 });
 
 /* ------------------------------------------------------- capture strategy -- */
