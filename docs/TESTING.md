@@ -9,7 +9,7 @@ that drive the real extension with Playwright.
 npm test          # node --test tests/*.test.cjs
 ```
 
-**336 checks, 0 dependencies, ~1 second.** No install step, no browser.
+**353 checks, 0 dependencies, ~1 second.** No install step, no browser.
 
 | File | Covers |
 |---|---|
@@ -24,7 +24,8 @@ npm test          # node --test tests/*.test.cjs
 | `tests/wireframe.test.cjs` | the wireframe transform (levels, tones, bars, placeholders, hidden content, scrims/lids, section surfaces, geometry/text bounds, fonts, assets, a bounded-work regression), the Viewports option and its saved choice (late storage, missing pipeline, re-attach, truncation hint, build stamp, miss reporting), the clipboard hook (pass-through, multi-width, failures, idempotence), injection order |
 | `tests/no-onboarding.test.cjs` | no wizard/onboarding, every locale key resolves |
 | `tests/figma-clip.test.cjs` | `(figma)` payload validation (magic, base64, metadata), refusal of page HTML and `(figh2d)`, storage cap/dedupe, clipboard read/write fallbacks, importer wiring, optional permission |
-| `tests/canvas-capture.test.cjs` | raster scaling, blank-frame detection, `data:` decoding without `fetch`, pass-through guarantees, single install, frame-0-only region RPC |
+| `tests/canvas-capture.test.cjs` | raster scaling, blank-frame detection, `data:` decoding without `fetch`, pass-through guarantees, single install, frame-0-only region RPC, raster notes and their 15s window |
+| `tests/figma-bridge.test.cjs` | the experimental toolbar entry: canvas-coverage gating, mount beside the tools role, one-shot mounting, experimental label, clipboard read with the paste-command fallback, raster-note explanations, opt-out flag, no new RPC, locale coverage |
 
 These tests load the shipped files directly (`extension/js/*.js`) into a `vm`
 context, so they fail when the runtime drifts from the documented behaviour.

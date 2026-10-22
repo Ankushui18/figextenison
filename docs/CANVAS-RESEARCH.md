@@ -16,6 +16,24 @@ Status: research finished 2026-10-23. **Route A (phase 1) and route D are now
 implemented**: `figma-import.html` + `js/figma-clip.js` keep Figma's own copy, and
 `js/canvas-capture.js` makes the raster honest. Phases 2–4 below are still open.
 
+**Branch experiment (not merged, not released).** `js/figma-bridge.js` moves route
+A into the capture flow itself: a **Figma copy** entry appears in the toolbar on
+pages painted on a canvas, and any capture that needed a raster now says so in
+the toolbar instead of arriving as an unexplained image. Three decisions are
+worth recording:
+
+- **It hooks a seam, it does not edit the bundle.** `h2d_toolbar.js` is generated,
+  so the bridge wraps the `PageCaptureDesignSystem.attach(controller, …)` call the
+  bundle already makes, and mounts a button into `[data-toolbar-role="tools"]`.
+- **Imported copies stay in the bridge's own list, not the capture tray.** Tray
+  entries are `{type:"snapshot", h2dJson}` and every copy action re-encodes
+  `h2dJson`; a `figma-clip` record there would break Copy and Copy all. The
+  bridge keeps its own "Copy again" list instead.
+- **Reading the clipboard is best-effort twice.** `navigator.clipboard.read` is
+  subject to the host page's permissions policy, and Figma may refuse it, so a
+  hidden `contenteditable` plus `execCommand("paste")` is tried before giving up
+  with an explanation. Neither path adds a network call or a new RPC.
+
 ---
 
 ## 1. Why the canvas is opaque

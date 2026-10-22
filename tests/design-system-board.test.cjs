@@ -239,7 +239,7 @@ test('Board module is idempotent and has no network, storage, clipboard reads, r
   vm.runInContext(source, h.context); assert.equal(h.context.PageCaptureDesignBoard, first);
   assert.doesNotMatch(source, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|chrome\.(?:storage|tabs|runtime)|clipboard\.(?:read|readText)|figma\.variables|createTextStyle|createEffectStyle|innerHTML\s*=|srcdoc\s*=/);
   assert.match(source, /navigator\.clipboard\.write\(/); assert.match(source, /extractCssVariables: false/);
-  assert.match(read('js/background.js'), /"js\/design-system-core\.js", "js\/design-system-board\.js", "js\/design-system\.js", "js\/viewports\.js", "js\/wireframe-core\.js", "js\/wireframe\.js", "js\/canvas-capture\.js", "js\/h2d_toolbar\.js"/);
+  assert.match(read('js/background.js'), /"js\/design-system-core\.js", "js\/design-system-board\.js", "js\/design-system\.js", "js\/viewports\.js", "js\/wireframe-core\.js", "js\/wireframe\.js", "js\/canvas-capture\.js", "js\/figma-clip\.js", "js\/figma-bridge\.js", "js\/h2d_toolbar\.js"/);
   const manifest = JSON.parse(read('manifest.json')); assert.equal(manifest.version, '1.9.0');
   assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
 });

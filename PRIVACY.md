@@ -88,12 +88,15 @@ URLs are copied as-is. **Capture code** is intentionally raw: it copies
   it, automatic copy is skipped and the capture stays in the tray for manual
   **Copy all**.
 - Reading the clipboard is **optional and separate** (`clipboardRead`). It exists
-  for one action: *Import a Figma copy* on the options page. Nothing is read when
+  for one action: *Import a Figma copy* — on the options page, or from the
+  experimental **Figma copy** entry in the toolbar on this branch. Nothing is read when
   a page loads, when the toolbar opens, or when a capture runs. On click, the
   clipboard's `text/html` is read once, and it is kept only if it contains Figma's
   `(figma)` marker with a valid container; anything else is discarded without
   being stored. Kept payloads live in `chrome.storage.local` and can be deleted
-  from the same page.
+  from the same page. The toolbar entry reads on click only, falls back to a
+  paste command if the page's clipboard policy refuses the asynchronous read, and
+  never reads on load.
 
 ## Permissions and why
 

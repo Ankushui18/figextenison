@@ -10,7 +10,7 @@ No account, no server, no telemetry, no uploads.</p>
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
   <img src="https://img.shields.io/badge/version-1.9.0-0d99ff" alt="version 1.9.0">
-  <img src="https://img.shields.io/badge/tests-336%20passing-brightgreen" alt="336 checks passing">
+  <img src="https://img.shields.io/badge/tests-353%20passing-brightgreen" alt="353 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -51,6 +51,12 @@ No account, no server, no telemetry, no uploads.</p>
 > **Status: 1.9.0, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
+> **Experimental, branch only.** This branch also adds an **Import a Figma copy**
+> entry *inside the capture toolbar*, next to **Capture design** and **Select
+> element**, so a canvas region can be replaced by Figma's own layered copy. It is
+> not released, not merged and not in the `1.9.0` build above: read it as a
+> working experiment. See [docs/CANVAS-RESEARCH.md](docs/CANVAS-RESEARCH.md).
+
 ---
 
 ## What it is, in one paragraph
@@ -75,7 +81,7 @@ capture without handing their browsing data to a service.
 | | |
 |---|---|
 | **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, video placeholders and open shadow roots. A canvas is rasterized honestly: cropped to its own box, WebGL read-backs included. |
-| **Import a Figma copy** | For content that only exists on a canvas. Select layers in Figma, `Ctrl/Cmd+C`, then import on the options page: the payload is kept locally and can be pasted into any file later. Optional clipboard read, only on click. |
+| **Import a Figma copy** | For content that only exists on a canvas. Select layers in Figma, `Ctrl/Cmd+C`, then import on the options page — or, experimentally on this branch, from a **Figma copy** button in the toolbar itself: the payload is kept locally and can be pasted into any file later. Optional clipboard read, only on click. |
 | **Select element** | Pick one element with the pointer; `↑`/`↓` adjust the selection. Produces the same editable model, scoped to that element. |
 | **Capture scroll area** | Click *anywhere inside* a nested vertical scroller and capture its entire 2,000px+ content, not just the visible slice. |
 | **Capture code** | Deliberately raw `document.documentElement.outerHTML`. No filtering — it is what it says. |
@@ -120,7 +126,7 @@ injected; injected code is only replaced on reload or navigation.
 ## How a capture works
 
 ```
-click  →  inject 10 scripts  →  walk the DOM in rAF  →  resolve image sources
+click  →  inject 12 scripts  →  walk the DOM in rAF  →  resolve image sources
        →  expand the model (full page / scroll area)  →  serialize + bound the
           UTF-8 size  →  recover missing assets in batches of 64  →  store in the
           tab's tray  →  write one text/html clipboard payload on Copy
@@ -308,6 +314,7 @@ figextenison/
 │   │   ├── canvas-capture.js    WebGL-safe canvas raster, paste-size guard
 │   │   ├── figma-clip.js        validate/store/re-emit a Figma `(figma)` copy
 │   │   ├── figma-import.js      the Figma-copy importer page controller
+│   │   ├── figma-bridge.js      experimental toolbar entry for Figma's own copy
 │   │   ├── h2d_toolbar.js       toolbar, capture engine, serializer, picker
 │   │   └── options.js           options page controller
 │   ├── font/, img/, _locales/, icon*.png
@@ -335,7 +342,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 336 dependency-free checks, no install, ~1s
+npm test          # 353 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -357,10 +364,11 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **336 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **353 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
-  review, board payload, wireframe transform/options/clipboard hook, locale
-  coverage, no onboarding.
+  review, board payload, wireframe transform/options/clipboard hook, the
+  experimental Figma bridge (coverage gating, raster notes, paste fallback,
+  one-shot mount), locale coverage, no onboarding.
 - **10 Chromium suites** — real toolbar injection, native rich clipboard payloads,
   real 1280/768/393px output, source DOM/scroll/focus preservation, denied-copy
   recovery, cancellation, zero remote requests from fixtures.

@@ -43,6 +43,7 @@ capture back to the worker.
 | `js/canvas-capture.js` | wraps `toBlob` during a capture: replaces a blank (WebGL) read-back with the visible pixels of the same rectangle, scales rasters past 4096px | small, readable |
 | `js/figma-clip.js` | validates a Figma `(figma)` clipboard payload, stores it, writes it back (no DOM at load, no network) | small, readable |
 | `js/figma-import.js` | the importer page controller: optional permission, import, re-copy, delete | small, readable |
+| `js/figma-bridge.js` | **experimental**: the toolbar's own Figma-copy entry, raster explanations, and the clipboard fallback | small, readable |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
 
@@ -86,7 +87,7 @@ command after injection.
 ## Capture pipeline
 
 1. **Trigger.** Toolbar button, keyboard command, or `chrome.action` click.
-2. **Inject.** `background.js` checks the URL and permissions, injects the ten
+2. **Inject.** `background.js` checks the URL and permissions, injects the twelve
    files in the order above, and sets the tab's "open" flag.
 3. **Build the model.** `h2d_toolbar.js` walks the DOM in a `requestAnimationFrame`
    (so layout is settled), producing a version-2 snapshot: nodes with
@@ -172,18 +173,41 @@ Capture design ─► engine builds the snapshot(s) ─► PageCaptureSafety.pre
 - **Fonts by name.** At High the family/style/weight names survive so the type
   stack still reads; a face `url`, `http(s):` or `data:` value never does.
 
-## Where to change things## Where to change things
+## Experimental: the Figma copy bridge
+
+`js/figma-bridge.js` is branch-only work, not part of a release. It exists because
+a canvas region captures as pixels no matter what we do, while Figma's own
+`Ctrl/Cmd+C` payload carries real layers.
+
+- **It does not modify the bundle.** `h2d_toolbar.js` calls
+  `globalThis.PageCaptureDesignSystem?.attach(controller, …)` once it is mounted;
+  the bridge replaces that global with a wrapper that forwards the call and then
+  attaches itself with the same live controller. Nothing in the generated file
+  changes, so regenerating it cannot break this.
+- **It mounts like the other panels.** Own host (`data-h2d-ignore="true"`, closed
+  shadow root), one button inside `[data-toolbar-role="tools"]`, then
+  `controller.updateActionBarLayout()`, with cleanup on
+  `controller.lifecycleAbort.signal`.
+- **It explains rasters.** `canvas-capture.js` records the last canvas outcome
+  (`replaced`, `resized`, `blank`) for 15 seconds; when a new capture lands in
+  `Core.capturesKey(tabId)`, the bridge shows that explanation in the toolbar
+  rather than leaving the image unexplained.
+- **It writes nothing extra.** No RPC, no host permission, no network. The one
+  background message is the existing `H2D_GET_TAB_ID`.
+
+## Where to change things
 
 | I want to change… | Go to |
 |---|---|
 | a toolbar button, icon or shortcut | `js/h2d_toolbar.js` (`actions` array) |
-| a user-facing string | `_locales/en/messages.json` (all 48 keys are used; keep it that way) |
+| a user-facing string | `_locales/en/messages.json` (every key is used; keep it that way) |
 | capture limits or a size budget | `js/viewports.js` (`LIMITS`), `js/capture-safety.js` |
 | redaction of form values | `js/capture-safety.js` |
 | which asset hosts are refused | `js/privacy.js` |
 | a new message handler | `handlers` in `js/background.js` **and** a test in `tests/privacy.test.cjs` |
 | what a capture contains | the walker in `js/h2d_toolbar.js` + a fixture test |
 | the permission/options flow | `js/core.js`, `js/options.js`, `background.js` |
+| the experimental Figma-copy entry | `js/figma-bridge.js` (and `tests/figma-bridge.test.cjs`) |
 
 ## Invariants worth not breaking
 

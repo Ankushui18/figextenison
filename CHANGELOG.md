@@ -45,6 +45,22 @@ entry below must always match (`npm run check` enforces it).
   that cannot be embedded locally remain reported as not embedded; the CSP and
   network permissions stay unchanged.
 
+### Experimental (branch only — not released, not merged)
+
+- **The Figma copy entry, in the toolbar.** `js/figma-bridge.js` mounts a
+  **Figma copy** button beside Capture design / Select element on pages painted
+  on a canvas, opens the importer inline, keeps imported copies for later
+  "Copy again", and carries an `Experimental` label. It is off on ordinary pages
+  and can be removed entirely with `chrome.storage.local` key
+  `figma_h2d_figma_bridge: false`.
+- **Rasters explain themselves.** `js/canvas-capture.js` records what the last
+  canvas needed — replaced from the visible pixels, scaled to Figma's paste
+  limit, or blank — and the toolbar reports it on the next capture, so an image
+  in the tray is no longer unexplained.
+- **No new surface.** No extra permission, host, RPC or network call; the bridge
+  wraps the design-system attach seam instead of touching the generated bundle.
+  This work is **not part of 1.9.0** and must not be merged or tagged as one.
+
 ## 1.8.5 — a dead toolbar says why
 
 ### Fixed

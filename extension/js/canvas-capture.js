@@ -25,12 +25,30 @@
   // hiding the toolbar keeps it out of the screenshot, and it is restored in a
   // finally block even when the fallback fails.
   const TOOLBAR_HOST_ID = "__figma_h2d_chrome_extension_toolbar__";
+  const RASTER_NOTE_TTL = 15000;  // how long a capture may be attributed to a raster
+  let lastRaster = null;          // what the most recent canvas needed, for the UI
 
   /** Scale a box to fit `maxSide`, never up. Returns integers. */
   function fitWithin(width, height, maxSide = MAX_SIDE) {
     if (![width, height, maxSide].every(Number.isFinite) || width <= 0 || height <= 0 || maxSide <= 0) return null;
     const scale = Math.min(1, maxSide / Math.max(width, height));
     return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)), scale };
+  }
+
+  /**
+   * Remember what happened to the last canvas so the toolbar can say why a
+   * capture came back as pixels instead of layers. Local only, never uploaded.
+   */
+  function noteRaster(kind, detail) {
+    lastRaster = Object.freeze({ kind, at: Date.now(), ...detail });
+    return lastRaster;
+  }
+
+  /** The note if it is recent enough to belong to a capture that just happened. */
+  function recentRaster(now = Date.now(), ttl = RASTER_NOTE_TTL) {
+    if (!lastRaster || !Number.isFinite(ttl) || ttl <= 0) return null;
+    const age = now - lastRaster.at;
+    return age >= 0 && age <= ttl ? lastRaster : null;
   }
 
   /** True when every sampled pixel is fully transparent — nothing was painted. */
@@ -72,24 +90,29 @@
     finally { bitmap?.close?.(); }
   }
 
+  /** Downscale to Figma's paste limit. Reports whether it actually resized. */
   async function shrink(blob) {
-    const target = typeof createImageBitmap === "function" && typeof OffscreenCanvas === "function"
-      ? await (async () => {
-        let bitmap;
-        try {
-          bitmap = await createImageBitmap(blob);
-          const fit = fitWithin(bitmap.width, bitmap.height);
-          if (!fit || fit.scale === 1) return null;
-          const canvas = new OffscreenCanvas(fit.width, fit.height);
-          const context = canvas.getContext("2d");
-          if (!context) return null;
-          context.drawImage(bitmap, 0, 0, fit.width, fit.height);
-          return await canvas.convertToBlob({ type: "image/webp", quality: 1 });
-        } catch { return null; }
-        finally { bitmap?.close?.(); }
-      })()
-      : null;
-    return target || blob;
+    const untouched = { blob, resized: false };
+    if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") return untouched;
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(blob);
+      const fit = fitWithin(bitmap.width, bitmap.height);
+      if (!fit || fit.scale === 1) return untouched;
+      const canvas = new OffscreenCanvas(fit.width, fit.height);
+      const context = canvas.getContext("2d");
+      if (!context) return untouched;
+      context.drawImage(bitmap, 0, 0, fit.width, fit.height);
+      const shrunk = await canvas.convertToBlob({ type: "image/webp", quality: 1 });
+      if (!shrunk) return untouched;
+      return {
+        blob: shrunk,
+        resized: true,
+        from: { width: bitmap.width, height: bitmap.height },
+        to: { width: fit.width, height: fit.height }
+      };
+    } catch { return untouched; }
+    finally { bitmap?.close?.(); }
   }
 
   /** Screenshot the canvas rectangle from the visible tab, toolbar hidden. */
@@ -129,9 +152,16 @@
       const blank = await sampleIsBlank(blob);
       if (blank && globalThis.self === globalThis.top) {
         const replacement = await captureRegion(canvas);
-        if (replacement) return replacement;
+        if (replacement) {
+          noteRaster("replaced", { width: Math.round(canvas.getBoundingClientRect?.().width || 0) });
+          return replacement;
+        }
+        noteRaster("blank");
+        return blob;
       }
-      return await shrink(blob);
+      const result = await shrink(blob);
+      if (result.resized) noteRaster("resized", { from: result.from, to: result.to });
+      return result.blob;
     } catch { return blob; }
   }
 
@@ -153,10 +183,13 @@
 
   globalThis.PageCaptureCanvas = Object.freeze({
     MAX_SIDE,
+    RASTER_NOTE_TTL,
     TOOLBAR_HOST_ID,
     fitWithin,
     isBlank,
     dataUrlToBytes,
+    noteRaster,
+    recentRaster,
     improve,
     install
   });

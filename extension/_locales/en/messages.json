@@ -278,5 +278,57 @@
   "figmaImportErrorStorage": {
     "message": "The copy could not be stored locally. Delete an older copy and try again.",
     "description": "chrome.storage.local write failed."
+  },
+  "figmaBridgeButton": {
+    "message": "Import a Figma copy",
+    "description": "Toolbar button that imports Figma's own clipboard copy."
+  },
+  "figmaBridgeTitle": {
+    "message": "Figma copy",
+    "description": "Panel title for the experimental Figma import bridge."
+  },
+  "figmaBridgeExperimental": {
+    "message": "Experimental",
+    "description": "Label marking the bridge as experimental, unreleased work."
+  },
+  "figmaBridgeIntro": {
+    "message": "A canvas has no HTML layers, so a capture of it is an image. Figma's own copy does have layers: select in Figma, press Ctrl/Cmd+C, then import it here.",
+    "description": "Explains why a canvas capture is a raster and what to do instead."
+  },
+  "figmaBridgeImport": {
+    "message": "Import Figma copy",
+    "description": "Primary action that reads Figma's copy from the clipboard."
+  },
+  "figmaBridgeImportAnother": {
+    "message": "Import another copy",
+    "description": "Primary action when copies are already saved."
+  },
+  "figmaBridgeImported": {
+    "message": "Saved locally. Copy it again any time, then paste into a Figma file.",
+    "description": "Success message after a Figma copy is stored."
+  },
+  "figmaBridgeLocal": {
+    "message": "Stored locally only",
+    "description": "Reassures that imported copies stay on the device."
+  },
+  "figmaBridgeHide": {
+    "message": "Hide",
+    "description": "Hides the bridge from this page's toolbar."
+  },
+  "figmaBridgePermission": {
+    "message": "Reading the clipboard needs a one-time permission. The extension's options page has the same importer and can ask for it.",
+    "description": "Shown when clipboard access was refused."
+  },
+  "figmaBridgeRasterReplaced": {
+    "message": "That capture contained a blank WebGL canvas, so its visible pixels were used instead. The result is an image, not layers.",
+    "description": "Why a capture became an image after a blank canvas."
+  },
+  "figmaBridgeRasterResized": {
+    "message": "That capture contained a canvas larger than 4096px. It was scaled down to Figma's paste limit, so it is an image, not layers.",
+    "description": "Why a capture became an image after a resize."
+  },
+  "figmaBridgeRasterBlank": {
+    "message": "That capture contained a canvas that read back empty, and no pixels could be recovered. Import Figma's copy instead.",
+    "description": "Why a canvas capture is unusable."
   }
 }

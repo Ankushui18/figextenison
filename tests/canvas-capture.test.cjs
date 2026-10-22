@@ -80,7 +80,7 @@ test('The hidden-toolbar selector matches the toolbar the engine mounts', () => 
 });
 test('The service worker exposes a frame-0-only region raster RPC and injects the module', async () => {
   const background = read('js/background.js');
-  assert.match(background, /"js\/canvas-capture\.js", "js\/h2d_toolbar\.js"/, 'canvas module loads before the capture engine');
+  assert.match(background, /"js\/canvas-capture\.js", "js\/figma-clip\.js", "js\/figma-bridge\.js", "js\/h2d_toolbar\.js"/, 'the canvas module loads before the capture engine, and the experimental bridge loads after it');
   let listener;
   const event = { addListener() {} };
   const sandbox = {
