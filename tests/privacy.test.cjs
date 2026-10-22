@@ -95,16 +95,11 @@ test('Known service destinations are rejected before fetch is invoked', async ()
   assert.ok(result.value.every(asset => asset.error === 'blocked' && asset.blob === null));
   assert.equal(harness.calls.length, 0);
 });
-test('Remaining recovery request is a GET without credentials, body or referrer', async () => {
+test('Worker does not attempt page-hosted asset recovery that extension CSP blocks', async () => {
   const harness = workerHarness();
-  await harness.send('H2D_FETCH_ASSETS', { urls: ['https://example.com/image.png'] });
-  assert.equal(harness.calls.length, 1);
-  const options = harness.calls[0].options;
-  assert.equal(options.method, 'GET');
-  assert.equal(options.credentials, 'omit');
-  assert.equal(options.referrerPolicy, 'no-referrer');
-  assert.equal(options.redirect, 'error');
-  assert.equal(options.body, undefined);
+  const result = await harness.send('H2D_FETCH_ASSETS', { urls: ['https://example.com/image.png'] });
+  assert.equal(harness.calls.length, 0);
+  assert.deepEqual(Array.from(result.value, asset => [asset.error, asset.blob]), [['recovery_failed', null]]);
 });
 test('Recovery rejects malformed and unbounded asset lists', async () => {
   const harness = workerHarness();

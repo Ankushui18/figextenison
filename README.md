@@ -10,7 +10,7 @@ No account, no server, no telemetry, no uploads.</p>
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
   <img src="https://img.shields.io/badge/version-1.8.5-0d99ff" alt="version 1.8.5">
-  <img src="https://img.shields.io/badge/tests-313%20passing-brightgreen" alt="313 checks passing">
+  <img src="https://img.shields.io/badge/tests-310%20passing-brightgreen" alt="310 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -329,7 +329,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 313 dependency-free checks, no install, ~1s
+npm test          # 310 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -351,7 +351,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **313 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **310 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.

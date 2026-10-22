@@ -147,7 +147,8 @@ test('Toolbar regression baseline retains board/responsive/full-page/scroll-area
     ['function __h2dDropStaleHost(){let e=document.getElementById(bt);e&&!__h2dLiveHost(e)&&e.remove()}', ''],
     ['__h2dDropStaleHost(),', ''],
     ['r.id=n,r.__h2dToolbarLive=!0;', 'r.id=n;'],
-    ['if(!chrome.runtime?.id)return void o("Reload the extension and refresh this page before capturing.");', '']
+    ['if(!chrome.runtime?.id)return void o("Reload the extension and refresh this page before capturing.");', ''],
+    ['d.destroy({animate:!1})', 'd.destroy()']
   ];
   const guardedSend = 'async function X(e,t){if(!chrome.runtime?.id)throw new Error("Reload the extension and refresh this page before capturing.");try{var n=await chrome.runtime.sendMessage(void 0===t?{cmd:e}:{cmd:e,payload:t})}catch(o){throw chrome.runtime?.id?o:new Error("Reload the extension and refresh this page before capturing.")}if(!n?.success)';
   const plainSend = 'async function X(e,t){let n=await chrome.runtime.sendMessage(void 0===t?{cmd:e}:{cmd:e,payload:t});if(!n?.success)';
