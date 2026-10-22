@@ -29,7 +29,7 @@ capture back to the worker.
 
 | File | Role | Size class |
 |---|---|---|
-| `js/background.js` | service worker: 6 message handlers, toolbar injection, tab previews, asset recovery | small, readable |
+| `js/background.js` | service worker: 7 message handlers, toolbar injection, tab previews, region rasters, asset recovery | small, readable |
 | `js/core.js` | shared constants (permission set, storage keys, options URL builder) | small, readable |
 | `js/privacy.js` | asset-URL policy: blocked hosts, private ranges, `data:`/`blob:` handling | small, readable |
 | `js/capture-safety.js` | redaction, cancellation, size budgets, clipboard preparation, saved-record migration | medium, readable |
@@ -40,6 +40,9 @@ capture back to the worker.
 | `js/wireframe-core.js` | pure wireframe transform: levels, grey ramps, text bars, placeholders, the capture-model walk | medium, readable |
 | `js/wireframe.js` | the **Wireframe** option inside the Viewports popover, its saved choice, and the clipboard hook that applies the transform | small, readable |
 | `js/h2d_toolbar.js` | **everything else in the page**: toolbar chrome, capture engine, serializer, picker, viewports popover, clipboard write | large, minified |
+| `js/canvas-capture.js` | wraps `toBlob` during a capture: replaces a blank (WebGL) read-back with the visible pixels of the same rectangle, scales rasters past 4096px | small, readable |
+| `js/figma-clip.js` | validates a Figma `(figma)` clipboard payload, stores it, writes it back (no DOM at load, no network) | small, readable |
+| `js/figma-import.js` | the importer page controller: optional permission, import, re-copy, delete | small, readable |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
 
@@ -69,6 +72,7 @@ frozen in `background.js`:
 | `H2D_OPEN_TOOLBAR` | options page, with a pending `request_id` | resume a capture after permissions are granted |
 | `H2D_CAPTURE_VISIBLE_TAB` | tab frame 0 | PNG preview of the visible tab |
 | `H2D_CAPTURE_ELEMENT_PREVIEW` | tab frame 0 | cropped preview for a selected element's rect |
+| `H2D_CAPTURE_REGION_RASTER` | tab frame 0 | the same crop, used to replace a canvas whose own read-back was blank |
 | `H2D_FETCH_ASSETS` | tab frame 0 | batched `GET` recovery for page images (supports `requestId` + `cancel`) |
 | `H2D_TOOLBAR_CLOSED` | tab frame 0 | clear the tab's "toolbar open" flag |
 
@@ -82,7 +86,7 @@ command after injection.
 ## Capture pipeline
 
 1. **Trigger.** Toolbar button, keyboard command, or `chrome.action` click.
-2. **Inject.** `background.js` checks the URL and permissions, injects the seven
+2. **Inject.** `background.js` checks the URL and permissions, injects the ten
    files in the order above, and sets the tab's "open" flag.
 3. **Build the model.** `h2d_toolbar.js` walks the DOM in a `requestAnimationFrame`
    (so layout is settled), producing a version-2 snapshot: nodes with

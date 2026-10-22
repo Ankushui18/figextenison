@@ -87,6 +87,13 @@ URLs are copied as-is. **Capture code** is intentionally raw: it copies
 - `clipboardWrite` is requested at runtime through the options page; if you deny
   it, automatic copy is skipped and the capture stays in the tray for manual
   **Copy all**.
+- Reading the clipboard is **optional and separate** (`clipboardRead`). It exists
+  for one action: *Import a Figma copy* on the options page. Nothing is read when
+  a page loads, when the toolbar opens, or when a capture runs. On click, the
+  clipboard's `text/html` is read once, and it is kept only if it contains Figma's
+  `(figma)` marker with a valid container; anything else is discarded without
+  being stored. Kept payloads live in `chrome.storage.local` and can be deleted
+  from the same page.
 
 ## Permissions and why
 
@@ -97,6 +104,7 @@ URLs are copied as-is. **Capture code** is intentionally raw: it copies
 | `tabs` | identify the capture source tab and its preview |
 | `storage`, `unlimitedStorage` | keep the local capture tray |
 | `clipboardWrite` | write the design/HTML clipboard payload |
+| `clipboardRead` (**optional**) | read one Figma copy, only when *Import a Figma copy* is pressed |
 
 No `pageCapture`, no `downloads`, no `webRequest`, no remote `host_permissions`
 beyond the page you are capturing.

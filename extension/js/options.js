@@ -145,6 +145,7 @@
     }
     panel.append(element("h1", text("optionsCaptureReadyTitle")), element("p", text("optionsCaptureReadyDescription")));
     if (state.error) notice(state.error);
+    button(text("optionsFigmaImportCta"), () => chrome.tabs.create({ url: chrome.runtime.getURL("figma-import.html") }), true);
     button(text(state.error && state.requestId ? "retryButton" : "closeButton"), finish);
   }
 

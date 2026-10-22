@@ -1,6 +1,6 @@
 {
   "name": "page-capture-extension",
-  "version": "1.8.5",
+  "version": "1.9.0",
   "private": true,
   "description": "Local-only page capture Chrome extension. No build step and no runtime dependencies.",
   "license": "MIT",

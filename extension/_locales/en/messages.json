@@ -190,5 +190,93 @@
   "h2dViewportsButton": {
     "message": "Viewports",
     "description": "Opens the viewport size picker"
+  },
+  "optionsFigmaImportCta": {
+    "message": "Import a Figma copy",
+    "description": "Secondary button on the options page opening the Figma copy importer."
+  },
+  "figmaImportTitle": {
+    "message": "Import a Figma copy",
+    "description": "Heading of the Figma copy importer page."
+  },
+  "figmaImportDescription": {
+    "message": "A design drawn on a canvas has no HTML layers to read, so it cannot be captured like a page. Figma’s own copy can, and this page keeps it: the layers survive and you can paste them into any file later.",
+    "description": "Explains why canvas content needs a different route."
+  },
+  "figmaImportStep1": {
+    "message": "In Figma, select the frames or layers you want.",
+    "description": "Importer step 1."
+  },
+  "figmaImportStep2": {
+    "message": "Press Ctrl/Cmd+C.",
+    "description": "Importer step 2."
+  },
+  "figmaImportStep3": {
+    "message": "Come back here and press Import copy from clipboard.",
+    "description": "Importer step 3."
+  },
+  "figmaImportCta": {
+    "message": "Import copy from clipboard",
+    "description": "Reads the clipboard once, on click."
+  },
+  "figmaImportEmptyState": {
+    "message": "No Figma copies saved yet.",
+    "description": "Empty list state."
+  },
+  "figmaImportSavedTitle": {
+    "message": "Saved copies",
+    "description": "Heading over the stored Figma copies."
+  },
+  "figmaImportCopied": {
+    "message": "Copied — switch to Figma and paste with Ctrl/Cmd+V.",
+    "description": "Status after re-copying a stored payload."
+  },
+  "figmaImportStored": {
+    "message": "Saved. Copy it again here any time, then paste into any Figma file.",
+    "description": "Status after importing."
+  },
+  "figmaImportCopyAgain": {
+    "message": "Copy again",
+    "description": "Re-copies a stored Figma payload."
+  },
+  "figmaImportDelete": {
+    "message": "Delete",
+    "description": "Removes a stored Figma payload."
+  },
+  "figmaImportLimited": {
+    "message": "The 12 most recent copies are kept; older ones are dropped.",
+    "description": "Shown when the storage cap is reached."
+  },
+  "figmaImportPermissionNote": {
+    "message": "Importing reads your clipboard once, when you press the button. Nothing is read on page load and nothing leaves this browser.",
+    "description": "Explains the optional clipboard read permission."
+  },
+  "figmaImportErrorEmpty": {
+    "message": "Your clipboard is empty. Select layers in Figma and press Ctrl/Cmd+C first.",
+    "description": "Clipboard had no data."
+  },
+  "figmaImportErrorNotFigma": {
+    "message": "That clipboard content is not a Figma copy. Select layers in Figma and press Ctrl/Cmd+C, then try again.",
+    "description": "Clipboard HTML was not a Figma scene payload."
+  },
+  "figmaImportErrorTooLarge": {
+    "message": "That copy is larger than 16 MB. Copy fewer layers and try again.",
+    "description": "Payload over the size cap."
+  },
+  "figmaImportErrorDenied": {
+    "message": "Clipboard read access was not granted, so nothing was imported.",
+    "description": "Optional permission refused."
+  },
+  "figmaImportErrorUnavailable": {
+    "message": "This browser does not allow reading rich clipboard data here.",
+    "description": "Clipboard API missing."
+  },
+  "figmaImportErrorWrite": {
+    "message": "Copying failed. Click the page once and try again.",
+    "description": "Clipboard write rejected."
+  },
+  "figmaImportErrorStorage": {
+    "message": "The copy could not be stored locally. Delete an older copy and try again.",
+    "description": "chrome.storage.local write failed."
   }
 }

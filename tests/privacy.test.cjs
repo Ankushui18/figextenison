@@ -71,10 +71,10 @@ function workerHarness() {
   };
 }
 
-test('Only the six local capture RPCs remain', () => {
+test('Only the seven local capture RPCs remain', () => {
   const harness = workerHarness();
   const commands = Array.from(vm.runInContext('Object.keys(handlers).sort()', harness.context));
-  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED']);
+  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_REGION_RASTER', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED']);
 });
 test('Removed account, upload, calendar and telemetry commands cannot execute', async () => {
   const harness = workerHarness();

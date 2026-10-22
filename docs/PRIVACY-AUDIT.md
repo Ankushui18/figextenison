@@ -1,8 +1,36 @@
 # Privacy and verification audit
 
-Version: **1.8.5**
+Version: **1.9.0**
 
-Review/test date: **21 October 2026**
+Review/test date: **23 October 2026**
+
+## 1.9.0 — canvas content, honestly
+
+- **Shape of the change.** Three new runtime modules (`js/canvas-capture.js`,
+  `js/figma-clip.js`, `js/figma-import.js`), one new page (`figma-import.html`),
+  one injected file, one new local RPC and one new **optional** permission
+  (`clipboardRead`). `h2d_toolbar.js` is byte-identical; the capture engine is
+  extended only through the `toBlob` wrapper that is installed before it.
+- **What the new permission can read, and when.** Only `text/html`, only from the
+  importer page, only inside a click handler, and only after
+  `chrome.permissions.request` has been granted. The payload is stored only when
+  it passes marker + base64 + container-magic validation; page HTML, our own
+  `(figh2d)` captures and oversized payloads are refused without being persisted.
+  There is no clipboard read on page load, at capture time, or from the toolbar.
+- **No new network path.** `tests/figma-clip.test.cjs` fails the build on `fetch`,
+  `XMLHttpRequest`, `sendBeacon` or an absolute URL in the importer or its page;
+  the CSP is unchanged (`connect-src 'self'`).
+- **Region rasters stay local.** `H2D_CAPTURE_REGION_RASTER` crops
+  `captureVisibleTab` for the requesting tab, refuses any frame other than 0,
+  refuses degenerate or absurd rectangles, and returns a data URL to the page that
+  asked. Nothing is uploaded and no new host permission is involved.
+- **Storage.** One additional `chrome.storage.local` key
+  (`figma_h2d_figma_clips`), newest-first, capped at 12 payloads of ≤16 MB each,
+  user-deletable. Existing tray keys keep their per-tab lifetime.
+- **Verification:** `npm test` — **336 checks, 0 failures**, including 18 Figma-copy
+  and 8 canvas-raster checks; `npm run verify` clean. Browser suites were not
+  re-run here (no Playwright/Chromium in this environment); their fixtures and the
+  paths they cover are untouched.
 
 ## 1.8.5 — recovery, not silent failure
 

@@ -104,6 +104,30 @@ Media queries, container queries and viewport units are re-evaluated at the
 target width, but **JavaScript-only** breakpoint rerenders are not replayed. If a
 site builds its mobile layout in JS on resize, use **Browser** only.
 
+### Why did my section paste as one image instead of layers?
+
+Because there was no layer tree to copy. The capture reads the DOM — tags, boxes and
+computed styles — and a `<canvas>` (or WebGL surface) has no children in the DOM.
+The engine rasterizes it instead (`addCanvas` → `toBlob` → one `placeholderUrl`
+asset), so Figma receives a single image fill.
+
+The usual case is capturing **Figma itself in the browser**: the editor draws your
+design on a WebGL canvas, so any element you pick inside the canvas area resolves to
+that canvas. The same applies to charting libraries, maps, 3D viewers and
+`<video>` frames.
+
+- To move layers **between Figma files**, use Figma's own copy/paste
+  (`Ctrl/Cmd + C`, then `Ctrl/Cmd + V` in the target file), **Duplicate to your
+  drafts**, or **Copy as PNG** if you really want pixels.
+- To use this extension, capture the **web page that renders the UI** (an app on
+  localhost, a staging site, a production page), not `figma.com`.
+- Quick check: capture a plain header on a normal page. If that arrives as frames
+  and text, the extension is fine and the image you got was a canvas.
+
+The five possible ways to get canvas content across — Figma's own clipboard payload, a
+companion plugin, a `.fig` file, the pixels, and the renderer's internals — are
+compared in [CANVAS-RESEARCH.md](CANVAS-RESEARCH.md), with a recommendation.
+
 ### Why are some images missing from my paste?
 
 The asset was not readable: it 404'd, needed cookies the extension deliberately

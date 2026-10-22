@@ -4,7 +4,38 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
-## Unreleased
+## 1.9.0 — canvas content, kept honestly
+
+### Added
+
+- **Import a Figma copy** (`figma-import.html`, `js/figma-clip.js`). A design
+  painted on a canvas — Figma's own editor, charts, maps — has no HTML layers to
+  read, so it can never be captured like a page. Figma's own `Ctrl/Cmd+C` payload
+  can: it carries the real scene in the `(figma)` channel. The importer validates
+  that payload (marker, base64, `fig-kiwi` / `fig-jam.` / `fig-deck` magic),
+  keeps up to 12 copies in `chrome.storage.local`, and writes one back to the
+  clipboard on demand so it can be pasted into any file later. Ordinary HTML, our
+  own `(figh2d)` captures and oversized payloads are refused by name.
+- **Canvas rasters that are right.** `js/canvas-capture.js` wraps
+  `HTMLCanvasElement.prototype.toBlob` for the duration of a capture: a fully
+  transparent read-back (WebGL without `preserveDrawingBuffer`, which is what
+  Figma's editor is) is replaced by the visible pixels of that same rectangle via
+  a new frame-0-only `H2D_CAPTURE_REGION_RASTER` RPC, with the toolbar hidden
+  while the screenshot is taken; rasters beyond 4096px are scaled into Figma's
+  paste budget. The original blob is passed through on any doubt, so this can
+  only add fidelity.
+- `docs/CANVAS-RESEARCH.md` compares all five routes to canvas content (Figma's
+  clipboard, a companion plugin, a `.fig` file, the pixels, the renderer's
+  internals) with evidence, and records the verified fig-kiwi spike.
+
+### Changed
+
+- The worker injects one more module, `js/canvas-capture.js`, before the capture
+  engine.
+- The local RPC allowlist grows to seven: `H2D_CAPTURE_REGION_RASTER`, restricted
+  to the top frame and capped at 20,000px per side.
+- `clipboardRead` is declared as an **optional** permission and requested only
+  when you press *Import copy from clipboard*. It is still never read on load.
 
 ### Fixed
 

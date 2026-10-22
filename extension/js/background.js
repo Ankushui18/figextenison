@@ -17,7 +17,7 @@ function isInjectable(url) {
 async function injectToolbar(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/h2d_toolbar.js"],
+    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/canvas-capture.js", "js/h2d_toolbar.js"],
     injectImmediately: true
   });
 }
@@ -102,10 +102,15 @@ function toDataUrl(blob, signal) {
   });
 }
 
-async function captureElementPreview(tab, payload) {
-  const rect = payload?.rect;
-  const ratio = payload?.devicePixelRatio || 1;
-  if (!rect || ![rect.x, rect.y, rect.width, rect.height, ratio].every(Number.isFinite) || ratio <= 0) return "";
+function validRect(rect, ratio, maxSide = Infinity) {
+  if (!rect || !Number.isFinite(ratio) || ratio <= 0) return false;
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return false;
+  return rect.width >= 2 && rect.height >= 2 && rect.width <= maxSide && rect.height <= maxSide;
+}
+
+// Crop the visible tab to one rectangle, in device pixels. Used for selection
+// thumbnails and for a WebGL canvas whose own toBlob read back blank.
+async function cropVisibleTab(tab, rect, ratio) {
   const image = await capturePreview(tab);
   if (!image) return "";
   let bitmap;
@@ -124,6 +129,13 @@ async function captureElementPreview(tab, payload) {
     return await toDataUrl(await canvas.convertToBlob({ type: "image/png" }));
   } catch { return ""; }
   finally { bitmap?.close(); }
+}
+
+async function captureElementPreview(tab, payload) {
+  const rect = payload?.rect;
+  const ratio = payload?.devicePixelRatio || 1;
+  if (!validRect(rect, ratio)) return "";
+  return cropVisibleTab(tab, rect, ratio);
 }
 
 // Extension-page CSP intentionally limits connect-src to 'self'. Do not try
@@ -173,6 +185,14 @@ const handlers = Object.freeze({
   H2D_OPEN_TOOLBAR: resumeCapture,
   H2D_CAPTURE_VISIBLE_TAB: sender => capturePreview(sender.tab),
   H2D_CAPTURE_ELEMENT_PREVIEW: (sender, payload) => captureElementPreview(sender.tab, payload),
+  // A canvas that reads back blank (WebGL without preserveDrawingBuffer) is
+  // replaced with the visible pixels of its own rectangle. Same-crop, no upload.
+  H2D_CAPTURE_REGION_RASTER: (sender, payload) => {
+    if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0) throw new Error("Invalid raster request sender");
+    const rect = payload?.rect, ratio = payload?.devicePixelRatio || 1;
+    if (!validRect(rect, ratio, 20000)) return "";
+    return cropVisibleTab(sender.tab, rect, ratio);
+  },
   H2D_FETCH_ASSETS: (sender, payload) => {
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0) throw new Error("Invalid asset request sender");
     return recoverAssets(payload, sender);

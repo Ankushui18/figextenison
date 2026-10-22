@@ -9,8 +9,8 @@ No account, no server, no telemetry, no uploads.</p>
 <p align="center">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/version-1.8.5-0d99ff" alt="version 1.8.5">
-  <img src="https://img.shields.io/badge/tests-310%20passing-brightgreen" alt="310 checks passing">
+  <img src="https://img.shields.io/badge/version-1.9.0-0d99ff" alt="version 1.9.0">
+  <img src="https://img.shields.io/badge/tests-336%20passing-brightgreen" alt="336 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -48,7 +48,7 @@ No account, no server, no telemetry, no uploads.</p>
 | **See what's missing** (honest list) | [Known limits](#known-limits) |
 | **Fix a problem** | [docs/FAQ.md](docs/FAQ.md) |
 
-> **Status: 1.8.5, source-distributed.** Not on the Chrome Web Store yet, so you
+> **Status: 1.9.0, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
 ---
@@ -74,7 +74,8 @@ capture without handing their browsing data to a service.
 
 | | |
 |---|---|
-| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, canvas, video placeholders and open shadow roots. |
+| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, video placeholders and open shadow roots. A canvas is rasterized honestly: cropped to its own box, WebGL read-backs included. |
+| **Import a Figma copy** | For content that only exists on a canvas. Select layers in Figma, `Ctrl/Cmd+C`, then import on the options page: the payload is kept locally and can be pasted into any file later. Optional clipboard read, only on click. |
 | **Select element** | Pick one element with the pointer; `↑`/`↓` adjust the selection. Produces the same editable model, scoped to that element. |
 | **Capture scroll area** | Click *anywhere inside* a nested vertical scroller and capture its entire 2,000px+ content, not just the visible slice. |
 | **Capture code** | Deliberately raw `document.documentElement.outerHTML`. No filtering — it is what it says. |
@@ -102,7 +103,8 @@ capture without handing their browsing data to a service.
    shortcut. The dark toolbar appears at the bottom of the page.
 5. **First run asks for permissions.** Approve website access and clipboard
    write, or automatic copy is skipped and the tray stays available for manual
-   copy.
+   copy. Reading the clipboard is a **separate, optional** ask that only the
+   Figma-copy importer makes, and only when you press its button.
 
 **No page handy?** Open `extension/options.html` directly in a browser to see the
 permission card, or use the [FAQ](docs/FAQ.md).
@@ -118,7 +120,7 @@ injected; injected code is only replaced on reload or navigation.
 ## How a capture works
 
 ```
-click  →  inject 7 scripts  →  walk the DOM in rAF  →  resolve image sources
+click  →  inject 10 scripts  →  walk the DOM in rAF  →  resolve image sources
        →  expand the model (full page / scroll area)  →  serialize + bound the
           UTF-8 size  →  recover missing assets in batches of 64  →  store in the
           tab's tray  →  write one text/html clipboard payload on Copy
@@ -251,7 +253,7 @@ How it works:
   arriving silently short.
 - **Repeatable.** Copying the same capture twice produces byte-identical layers;
   the capture you were given is never edited.
-- **Honest about itself.** The popover names the build (`Wireframe v1.8.5 · hook
+- **Honest about itself.** The popover names the build (`Wireframe v1.9.0 · hook
   live`) and, after a copy, how many records it rebuilt. A copy that silently
   produced the page is flagged in red instead of reported as success.
 - **Reversible.** The stored capture is untouched, so unchecking the option and
@@ -289,10 +291,11 @@ claims on every push.
 figextenison/
 ├── README.md                    ← you are here
 ├── extension/                   ← ONLY what Chrome loads. Load unpacked points here.
-│   ├── manifest.json            MV3, Chrome 116+, 5 permissions
+│   ├── manifest.json            MV3, Chrome 116+, 5 permissions + 1 optional
 │   ├── options.html             permission / status page
+│   ├── figma-import.html        "Import a Figma copy" page (optional clipboard read)
 │   ├── js/
-│   │   ├── background.js        service worker: 6 message handlers, injection
+│   │   ├── background.js        service worker: 7 message handlers, injection
 │   │   ├── core.js              shared constants, storage keys, options URL
 │   │   ├── privacy.js           asset-URL policy (blocked hosts, private ranges)
 │   │   ├── capture-safety.js    redaction, cancellation, budgets, clipboard prep
@@ -302,6 +305,9 @@ figextenison/
 │   │   ├── design-system.js     the Design System panel
 │   │   ├── wireframe-core.js    wireframe transform: levels, tones, bars (pure)
 │   │   ├── wireframe.js         Viewports checkbox, saved choice, copy hook
+│   │   ├── canvas-capture.js    WebGL-safe canvas raster, paste-size guard
+│   │   ├── figma-clip.js        validate/store/re-emit a Figma `(figma)` copy
+│   │   ├── figma-import.js      the Figma-copy importer page controller
 │   │   ├── h2d_toolbar.js       toolbar, capture engine, serializer, picker
 │   │   └── options.js           options page controller
 │   ├── font/, img/, _locales/, icon*.png
@@ -314,7 +320,7 @@ figextenison/
 │   ├── PRIVACY-AUDIT.md         long-form privacy verification per release
 │   ├── screenshots/             images used above
 │   └── brand/                   icon, cover, social preview
-├── tests/                       10 unit suites + 10 Chromium suites + fixtures
+├── tests/                       12 unit suites + 10 Chromium suites + fixtures
 ├── scripts/                     check-docs.js, pack.js
 ├── .github/workflows/ci.yml     what runs on every push and tag
 ├── CHANGELOG.md · CONTRIBUTING.md · PRIVACY.md · SECURITY.md · LICENSE (MIT)
@@ -329,7 +335,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 310 dependency-free checks, no install, ~1s
+npm test          # 336 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -351,7 +357,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **310 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **336 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.
@@ -379,6 +385,12 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
   [Viewports](#viewports-responsive-widths).
 - **Blocked assets stay blocked.** Figma-hosted, Sentry and private-address hosts
   are refused by policy; those images are reported as not embedded.
+- **Pixels stay pixels.** A region painted into a `<canvas>` or WebGL — charts, maps, a
+  video, or Figma's own editor — has no DOM below it, so it is captured as a single
+  image fill rather than layers. Copying layers *between* Figma files is Figma's own
+  `Ctrl/Cmd + C` → `Ctrl/Cmd + V`, not this extension. Every route in and out of that
+  limit, with the evidence, is compared in
+  [docs/CANVAS-RESEARCH.md](docs/CANVAS-RESEARCH.md).
 - **A wireframe is a reconstruction, not the page.** Fonts are substituted except
   at High, JS-driven layout and CSS animations are not replayed, and anything that
   only exists as pixels (canvas, embedded frames, WebGL) becomes a placeholder.
@@ -403,6 +415,7 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
 | Bottom of the page missing | Old build, or the content is inside a nested scroller → **Capture scroll area** |
 | Responsive copy looks like a desktop | JS-driven layout; capture **Browser** only |
 | Some images missing after paste | Blocked host, 404, or credentials required — see the "not embedded" count |
+| A section pastes as one image, not layers | That region is painted into `<canvas>`/WebGL (charts, maps, video, Figma's own editor) — there is no DOM to describe, so it is captured as pixels. Capture the page that renders the UI, not the canvas |
 | Copy does nothing | Clipboard write denied → use **Copy all** from the tray |
 | Everything is slow on a huge page | Node/CSS budgets; capture a smaller section |
 | Wireframe is empty or mostly blank | The page paints into canvas/WebGL, or the content is inside a cross-origin frame → uncheck **Copy as wireframe** and capture layers instead |
