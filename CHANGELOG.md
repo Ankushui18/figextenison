@@ -4,6 +4,81 @@ All notable changes are listed here. Versions follow `MAJOR.MINOR.PATCH`; the
 manifest version in `extension/manifest.json`, `package.json` and the newest
 entry below must always match (`npm run check` enforces it).
 
+## 1.10.0 — stable captures and explicit Paper HTML
+
+### Added
+
+- **Capture-scoped motion stabilization.** Running Web Animations, including CSS
+  transitions and infinite keyframe animations, pause at their capture-start
+  frame in the document and open shadow roots. A `finally` boundary restores
+  them after success, cancellation, timeout or error without rewriting the
+  page's reduced-motion preferences or adopted stylesheets.
+- **Real serializer progress and cooperative yielding.** Page, element and
+  scroll-area captures report the actual image/layout/asset/finalization phase.
+  The existing DOM walk yields every 200 visited nodes and reports its real
+  visited count; there is no dry run or second serialization.
+- **A separate Copy for Paper action.** The latest design snapshot can be
+  projected into sanitized standalone inline HTML with a plain-text fallback.
+  Computed styles, visible form state, pseudo-element text and embedded raster
+  assets are retained. Scripts, handlers, active embeds, dangerous URLs,
+  password/hidden values and pre-existing `x-paper-*` subtrees are removed.
+  The standalone projector has no Chrome API or raw-`outerHTML` input path.
+- **Shared clipboard recovery for Paper.** The explicit action uses the same
+  direct-first, bounded offscreen writer and cancellation/copy-session cleanup
+  as Figma copy. The Paper wrapper remains configurable in the pure projector.
+
+### Preserved and verification status
+
+- **Figma remains the default and highest-priority target.** Automatic copy,
+  Copy all, per-item copy and responsive copy still use the original
+  `figmeta`/`figh2d` preparation path. Capture code is still raw
+  `document.documentElement.outerHTML`. A deterministic payload hash and the
+  exact raw-write path now characterize both contracts.
+- No Paper Snapshot source, raster-to-vector conversion, editable-SVG claim,
+  context menu, dependency, remote onboarding or update behavior was added.
+  Serialized SVG source strings are not injected into the HTML clipboard.
+- The dependency-free suite has **361 passing checks**. The real-MV3 fixture now
+  also covers animation restoration, phase feedback and Paper offscreen
+  recovery, but no supported-Chromium run is claimed in this environment.
+  **Actual Paper paste behavior and the required wrapper remain unverified**;
+  use the four-case probe in `docs/PAPER-EXPORT.md` before claiming compatibility.
+
+## 1.9.0 — clipboard recovery and capture polish
+
+### Added
+
+- **A local MV3 clipboard recovery path.** Direct writes still run first. If
+  Chrome rejects one, `js/clipboard.js` sends the same user-requested text or
+  rich HTML through the new top-frame-only `H2D_WRITE_CLIPBOARD` RPC. A minimal
+  offscreen document retries the asynchronous Clipboard API, then a copy-event
+  fallback when necessary. It never parses capture HTML, reads the clipboard,
+  uses the network or persists the payload, and closes after the answer.
+- **Bounded failure, not truncation.** Offscreen recovery accepts at most
+  32 MiB. Larger payloads keep the direct-write path and the existing actionable
+  error if that fails; no content is cut to fit. The worker and offscreen
+  document both validate the sender, payload shape and byte limit. The only new
+  manifest permission is `offscreen`.
+- **More precise keyboard picking.** `↑` still moves to the parent. `↓` retains
+  pointer-aware descent and can now fall back to the first selectable child or
+  next sibling, including open shadow roots and assigned slot elements. Enter
+  confirms and Escape cancels as before.
+- **Polished existing notifications.** The Shadow DOM toast keeps its polite
+  live-region semantics and gains subtle scale/fade/blur motion, a dismissal
+  progress line and reduced-motion behavior. Busy captures retain their spinner.
+
+### Verified and unchanged
+
+- New regression coverage pins the serializer's existing **live input/textarea
+  values, checked/selected state, canvas/video rasterization and
+  `::before`/`::after` capture**. No second serializer or third-party extension
+  code was added. Password and nonvisual-control redaction remain intact.
+- **Capture code is still raw `document.documentElement.outerHTML`.** Rich
+  `figmeta`/`figh2d` payloads, responsive widths, wireframes, nested scroll
+  capture, design-system boards, storage keys and asset policy are unchanged.
+- Added a real MV3 Chromium fixture for form/media/pseudo fidelity, keyboard
+  selection, forced direct-write denial and actual offscreen recovery. The
+  dependency-free suite has **341 passing checks**.
+
 ## 1.8.5 — a dead toolbar says why
 
 ### Fixed

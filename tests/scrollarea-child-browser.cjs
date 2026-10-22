@@ -26,7 +26,7 @@ const html = fs.readFileSync(path.join(__dirname, 'fixtures/scrollarea.html'), '
         Object.defineProperty(globalThis, 'PageCaptureDesignBoard', { value: { ...api, createCopier(helpers) { test.helpers = helpers; return api.createCopier(helpers); } } });
       } });
     } }), tabId);
-    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/clipboard.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/capture-stability.js', 'js/html-export.js', 'js/picker-navigation.js', 'js/h2d_toolbar.js'] }), tabId);
     await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(url).origin });
     const toolbarButtons = await worker.evaluate(async tabId => {

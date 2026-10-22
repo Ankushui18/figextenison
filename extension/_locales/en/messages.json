@@ -99,6 +99,10 @@
     "message": "Copy all",
     "description": "Button text to copy all captures to clipboard"
   },
+  "h2dCopyPaperButton": {
+    "message": "Copy for Paper",
+    "description": "Separate action to copy the latest design snapshot as sanitized HTML for Paper"
+  },
   "h2dCopiedText": {
     "message": "Copied to clipboard",
     "description": "Success text shown after copying to clipboard"

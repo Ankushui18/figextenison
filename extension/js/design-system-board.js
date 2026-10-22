@@ -144,7 +144,7 @@
     return async function copyDesignSystem(system, { mount, signal, onPhase } = {}) {
       signal?.throwIfAborted();
       if (!mount?.isConnected) throw new Error("The generator is no longer open.");
-      if (typeof navigator.clipboard?.write !== "function" || typeof ClipboardItem !== "function") throw new Error("The rich clipboard is unavailable on this page.");
+      if ((!globalThis.PageCaptureClipboard?.write && typeof navigator.clipboard?.write !== "function") || typeof ClipboardItem !== "function") throw new Error("The rich clipboard is unavailable on this page.");
       const operation = new AbortController();
       const active = signal ? AbortSignal.any([signal, operation.signal]) : operation.signal;
       const timer = setTimeout(() => operation.abort(new DOMException("Board preparation timed out", "TimeoutError")), 12000);
@@ -207,7 +207,9 @@
         onPhase?.("writing");
         active.throwIfAborted();
         clearTimeout(timer);
-        await navigator.clipboard.write([new ClipboardItem({ "text/html": blob })]);
+        const item = new ClipboardItem({ "text/html": blob });
+        if (globalThis.PageCaptureClipboard?.write) await globalThis.PageCaptureClipboard.write([item]);
+        else await navigator.clipboard.write([item]);
         return { count };
       } catch (error) {
         active.throwIfAborted(); throw error;

@@ -56,7 +56,7 @@ window.fixtureReady=Promise.all([...document.images].map(image=>image.decode().c
         Object.defineProperty(globalThis, 'PageCaptureDesignBoard', { value: { ...api, createCopier(helpers) { test.helpers = helpers; return api.createCopier(helpers); } } });
       } });
     } }), tabId);
-    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js'] }), tabId);
+    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/clipboard.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js'] }), tabId);
     await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, func: () => {
       const test = __imageCompletenessTest, system = globalThis.PageCaptureDesignSystem;
       test.messages = []; test.attached = false; test.attachType = typeof system?.attach;
@@ -72,7 +72,7 @@ window.fixtureReady=Promise.all([...document.images].map(image=>image.decode().c
         Object.defineProperty(globalThis, 'PageCaptureDesignSystem', { configurable: true, writable: true, value: wrapped });
       }
     } }), tabId);
-    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    await worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/viewports.js', 'js/capture-stability.js', 'js/html-export.js', 'js/picker-navigation.js', 'js/h2d_toolbar.js'] }), tabId);
     await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
 
     const isolated = (operation, args = {}) => worker.evaluate(async ({ tabId, operation, args }) => {

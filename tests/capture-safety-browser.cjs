@@ -31,6 +31,14 @@ const legacyDocument = { version: 2, root: { nodeType: 1, tag: 'HTML', rect: { x
       const t = globalThis.__safetyTest = { roots: [], mode: 'normal', writes: 0, nativeWrites: 0, prepCalls: 0, encoded: 0, release: null, activeFetch: false };
       const attach = Element.prototype.attachShadow;
       Element.prototype.attachShadow = function(options) { const root = attach.call(this, options); t.roots.push({ host: this, root }); return root; };
+      Object.defineProperty(globalThis, 'PageCaptureClipboard', { configurable: true, get: () => undefined, set(api) {
+        Object.defineProperty(globalThis, 'PageCaptureClipboard', { value: { ...api,
+          // This suite tests the existing direct-denial UI. The dedicated
+          // fidelity suite exercises real offscreen recovery separately.
+          write: items => t.mode === 'deny' ? navigator.clipboard.write(items) : api.write(items),
+          writeText: text => t.mode === 'deny' ? navigator.clipboard.writeText(text) : api.writeText(text)
+        } });
+      } });
       Object.defineProperty(globalThis, 'PageCaptureSafety', { configurable: true, get: () => undefined, set(api) {
         t.api = api;
         Object.defineProperty(globalThis, 'PageCaptureSafety', { value: { ...api, createSession: () => { t.session = api.createSession(); return t.session; }, prepareClipboard: async (records, options) => {
@@ -58,7 +66,7 @@ const legacyDocument = { version: 2, root: { nodeType: 1, tag: 'HTML', rect: { x
         return fetch(url, options);
       };
     } }), tabId);
-    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/clipboard.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/capture-stability.js', 'js/html-export.js', 'js/picker-navigation.js', 'js/h2d_toolbar.js'] }), tabId);
     await inject(); await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
     const isolated = (operation, args = {}) => worker.evaluate(async ({ tabId, operation, args }) => {
       const [result] = await chrome.scripting.executeScript({ target: { tabId }, args: [operation, args], func: async (operation, args) => {

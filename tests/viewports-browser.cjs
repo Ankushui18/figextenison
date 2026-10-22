@@ -33,7 +33,7 @@ const html = fs.readFileSync(path.join(__dirname, 'fixtures/viewports.html'), 'u
         Element.prototype.attachShadow = function(options) { const root = original.call(this, options); globalThis.__viewportTestRoots.push({ host: this, root }); return root; };
       } }); return tab.id;
     }, url);
-    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/h2d_toolbar.js'] }), tabId);
+    const inject = () => worker.evaluate(async tabId => chrome.scripting.executeScript({ target: { tabId }, files: ['js/privacy.js', 'js/capture-safety.js', 'js/clipboard.js', 'js/design-system-core.js', 'js/design-system-board.js', 'js/design-system.js', 'js/viewports.js', 'js/capture-stability.js', 'js/html-export.js', 'js/picker-navigation.js', 'js/h2d_toolbar.js'] }), tabId);
     await inject(); await page.locator('#__figma_h2d_chrome_extension_toolbar__').waitFor({ state: 'attached' });
     const isolated = (operation, args = {}) => worker.evaluate(async ({ tabId, operation, args }) => {
       const [result] = await chrome.scripting.executeScript({ target: { tabId }, args: [operation, args], func: (operation, args) => {

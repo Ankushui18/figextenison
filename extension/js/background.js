@@ -17,7 +17,7 @@ function isInjectable(url) {
 async function injectToolbar(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/h2d_toolbar.js"],
+    files: ["js/privacy.js", "js/capture-safety.js", "js/clipboard.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/capture-stability.js", "js/html-export.js", "js/picker-navigation.js", "js/h2d_toolbar.js"],
     injectImmediately: true
   });
 }
@@ -188,6 +188,55 @@ async function recoverAssets(payload, sender) {
   } finally { if (key && assetJobs.get(key)?.controller === controller) assetJobs.delete(key); }
 }
 
+const MAX_CLIPBOARD_MESSAGE_BYTES = 32 * 1024 * 1024;
+let creatingOffscreen = null, offscreenWriteQueue = Promise.resolve();
+
+function validClipboardPayload(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  if (payload.kind === "text") {
+    return typeof payload.text === "string" && new Blob([payload.text]).size <= MAX_CLIPBOARD_MESSAGE_BYTES;
+  }
+  return payload.kind === "html" && typeof payload.html === "string" && typeof payload.text === "string" &&
+    new Blob([payload.html, payload.text]).size <= MAX_CLIPBOARD_MESSAGE_BYTES;
+}
+
+async function ensureOffscreenClipboard() {
+  if (creatingOffscreen) return creatingOffscreen;
+  creatingOffscreen = (async () => {
+    if (!await chrome.offscreen.hasDocument()) {
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["CLIPBOARD"],
+        justification: "Write only the capture the user explicitly chose to copy when the source tab cannot access the clipboard."
+      });
+    }
+  })();
+  try { await creatingOffscreen; }
+  finally { creatingOffscreen = null; }
+}
+
+function writeClipboardOffscreen(sender, payload) {
+  if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0 || !validClipboardPayload(payload)) {
+    throw new Error("Invalid clipboard request");
+  }
+  // One offscreen document handles one write at a time. It is closed after the
+  // browser answers, so no idle clipboard document or captured payload lingers.
+  const operation = offscreenWriteQueue.then(async () => {
+    await ensureOffscreenClipboard();
+    try {
+      const response = await chrome.runtime.sendMessage({ cmd: "H2D_OFFSCREEN_WRITE", payload });
+      if (!response?.success) throw new Error("Offscreen clipboard write failed");
+      return true;
+    } finally {
+      if (await chrome.offscreen.hasDocument().catch(() => false)) {
+        await chrome.offscreen.closeDocument().catch(() => {});
+      }
+    }
+  });
+  offscreenWriteQueue = operation.catch(() => {});
+  return operation;
+}
+
 const handlers = Object.freeze({
   H2D_GET_TAB_ID: sender => {
     if (!Number.isInteger(sender.tab?.id)) throw new Error("Capture must originate from a tab");
@@ -200,12 +249,16 @@ const handlers = Object.freeze({
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0) throw new Error("Invalid asset request sender");
     return recoverAssets(payload, sender);
   },
+  H2D_WRITE_CLIPBOARD: writeClipboardOffscreen,
   H2D_TOOLBAR_CLOSED: async sender => {
     if (Number.isInteger(sender.tab?.id)) await chrome.storage.local.remove(Core.openKey(sender.tab.id));
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  // This internal command is answered by offscreen.html, not by the public RPC
+  // allowlist. Returning without a response lets that document own the channel.
+  if (message?.cmd === "H2D_OFFSCREEN_WRITE") return false;
   if (sender.id !== chrome.runtime.id || !Object.hasOwn(handlers, message?.cmd)) {
     respond({ success: false, error: { message: "Unsupported local capture command" } });
     return false;

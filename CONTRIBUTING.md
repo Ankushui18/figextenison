@@ -9,7 +9,7 @@ Use **Issues → New issue → Bug report**. The template asks for:
 
 - extension version (from `chrome://extensions`) and Chrome version;
 - which action: Capture design, Select element, Capture scroll area,
-  Capture code, Viewports, or a Design System copy;
+  Capture code, Copy for Paper, Viewports, or a Design System copy;
 - whether it fails in a normal tab, an embedded frame, or a `file://` page;
 - a screenshot, and a minimal fixture if the page is public.
 
@@ -26,7 +26,7 @@ Use **Issues → New issue → Bug report**. The template asks for:
 ```bash
 git clone https://github.com/Ankushui18/figextenison.git
 cd figextenison
-npm test          # 313 dependency-free checks, no install step
+npm test          # 361 dependency-free checks, no install step
 npm run check     # version/docs/link hygiene
 npm run verify    # test + check (what CI runs)
 ```
@@ -59,6 +59,10 @@ npm run test:browser          # all suites, sequentially
 - **Only an explicit user action writes the clipboard.** No automatic copy on load.
 - **Sanitize anything that came from the page** before it reaches panel DOM, and
   keep `PageCaptureSafety` in the loop.
+- **Keep Figma and raw-code contracts stable.** Paper/HTML belongs in the pure
+  `html-export.js` projection and its explicit action, not in `prepareClipboard`
+  or raw `outerHTML` capture. Follow [docs/PAPER-EXPORT.md](docs/PAPER-EXPORT.md)
+  before claiming destination compatibility.
 - **Be honest in the UI.** If a result is partial, says so (e.g. "12 included,
   1 not embedded").
 - **Changing capture output?** Add or extend a fixture and a check first, so the
@@ -73,6 +77,11 @@ npm run test:browser          # all suites, sequentially
 | Full-page framing, lazy images, asset batches | `tests/fullpage.test.cjs` |
 | Scroll-area expansion | `tests/fullpage.test.cjs`, `tests/scrollarea-browser.cjs` |
 | Privacy/redaction, copy failures, budgets | `tests/capture-safety.test.cjs` |
+| Clipboard recovery, offscreen sender/size limits | `tests/clipboard.test.cjs`, `tests/capture-fidelity-browser.cjs` |
+| Form/media/pseudo-element fidelity | `tests/capture-fidelity.test.cjs`, `tests/capture-fidelity-browser.cjs` |
+| Animation rollback and cooperative capture progress | `tests/capture-stability.test.cjs`, `tests/capture-fidelity-browser.cjs` |
+| Paper HTML projection and action isolation | `tests/html-export.test.cjs`, `tests/capture-fidelity-browser.cjs` |
+| Picker keyboard traversal | `tests/picker-navigation.test.cjs`, `tests/capture-fidelity-browser.cjs` |
 | Viewport presets, responsive copies | `tests/viewports.test.cjs`, `tests/viewports-responsive.test.cjs` |
 | Design tokens, review/merge/exclude | `tests/design-system.test.cjs`, `tests/design-system-polish.test.cjs` |
 | Editable board + clipboard payload | `tests/design-system-board.test.cjs` |

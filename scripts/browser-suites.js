@@ -22,7 +22,8 @@ const SUITES = [
   'scrollarea-browser.cjs',
   'scrollarea-child-browser.cjs',
   'image-completeness-browser.cjs',
-  'capture-safety-browser.cjs'
+  'capture-safety-browser.cjs',
+  'capture-fidelity-browser.cjs'
 ];
 
 const filter = process.argv[2];

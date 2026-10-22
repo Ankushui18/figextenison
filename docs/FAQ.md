@@ -14,9 +14,20 @@ There is no Figma login and no plugin install.
 
 ### What do I actually get on the clipboard?
 
-A `text/html` payload containing the established `figma`/`figh2d` snapshot
-format — one entry per capture, plus plain text. Pasting into Figma produces
-editable frames, text, shapes and image fills, not a single screenshot.
+The default design copy is a `text/html` payload containing the established
+`figmeta`/`figh2d` snapshot format — one entry per capture. Pasting into Figma
+produces editable frames, text, shapes and image fills, not a single screenshot.
+**Copy for Paper** uses a separate sanitized HTML + plain-text item, and
+**Capture code** writes raw HTML as text.
+
+### How do I copy for Paper? Is compatibility verified?
+
+Capture a design, then choose **Copy for Paper**. This exports only the latest
+snapshot and never changes the default Figma or raw-code actions. The HTML is
+projected from the sanitized capture model and uses the same clipboard recovery.
+Actual Paper paste behavior and the current wrapper requirement are **not yet
+verified**; see [docs/PAPER-EXPORT.md](PAPER-EXPORT.md) for the four-case probe
+and current limitations.
 
 ### How do I get a wireframe?
 
@@ -58,7 +69,7 @@ budget, the popover hint says so — capture a section instead of the whole page
 ### I ticked it and got the real page. Why?
 
 Almost always a stale build. Open **Viewports** and read the last line of the
-Wireframe section: it says `Wireframe v1.8.5 · hook live`. An older number, or
+Wireframe section: it says `Wireframe v1.10.0 · hook live`. An older number, or
 `hook missing`, means the folder the browser loaded predates the transform —
 rebuild it with `npm run pack`, load that folder, then reload the extension and
 refresh the page. After a copy the same line reports how many records were

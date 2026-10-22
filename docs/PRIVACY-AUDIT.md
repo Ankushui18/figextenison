@@ -1,8 +1,73 @@
 # Privacy and verification audit
 
-Version: **1.8.5**
+Version: **1.10.0**
 
-Review/test date: **21 October 2026**
+Review/test date: **22 October 2026**
+
+## 1.10.0 — capture stability and separate Paper projection
+
+- **No new privilege or destination.** This release adds no permission, RPC,
+  storage key, dependency, context menu, remote onboarding or network path.
+  Paper output is created only after its explicit action and stays within the
+  existing local clipboard writer/offscreen recovery boundary.
+- **Temporary motion freeze, guaranteed restoration.** Only running Web
+  Animations are paused at the capture-start frame, including open shadow roots.
+  Already-paused/idle/finished animations and adopted stylesheets are not
+  rewritten. The serializer's outer `finally` restores on success, cancellation,
+  timeout and errors, and does not undo a page-originated cancel/play decision.
+- **Real work, one traversal.** The existing DOM walk reports actual phases and
+  yields every 200 visited nodes. There is no dry run, extra counting traversal
+  or second serialization. Paper projection independently yields and honors
+  cancellation without parsing or injecting raw page HTML.
+- **Separate sanitized HTML.** Copy for Paper re-sanitizes only the latest saved
+  snapshot and projects text, safe attributes, inline computed styles and
+  available raster assets. Scripts, handlers, active embeds, dangerous URLs,
+  hidden/password values and pre-existing `x-paper-*` subtrees are removed.
+  Serialized SVG source is not injected; no vector/editable-SVG claim is made.
+  Safe HTTP(S) asset references can remain when bytes were not embedded, and a
+  destination may resolve them after the user's deliberate paste.
+- **Figma and raw-code contracts retained.** Automatic/Copy-all/per-item/responsive
+  actions still use the original `figmeta`/`figh2d` preparation path and MIME
+  composition. Capture code remains raw `document.documentElement.outerHTML`.
+  A deterministic Figma payload hash and exact raw-write characterization guard
+  both behaviors. No third-party Paper Snapshot source was merged.
+- **Verification:** `npm test` — **361 checks, 0 failures**. The real-MV3 fixture
+  was extended for animation restoration, phase feedback and actual offscreen
+  Paper recovery. No supported-Chromium run is claimed in this environment.
+  Actual Paper paste behavior and the `<x-paper-html>` wrapper requirement are
+  **unverified**; `docs/PAPER-EXPORT.md` records the required four-case probe.
+- **Inventory:** **28 files / 804,089 bytes**, of which **17 JavaScript
+  files / 429,890 bytes**. Manifest version is **1.10.0**.
+
+## 1.9.0 — bounded local clipboard recovery
+
+- **Independent implementation.** The attached third-party extension files were
+  not copied or added to the repository. The existing serializer already handled
+  live form state, canvas/video pixels and pseudo-elements; new tests pin those
+  behaviors instead of introducing a parallel capture engine.
+- **One reviewed permission and RPC.** `offscreen` supports the new local
+  `H2D_WRITE_CLIPBOARD` handler, raising the public allowlist to seven RPCs. Only
+  a top-frame tab sender can request recovery. The separate
+  `H2D_OFFSCREEN_WRITE` message is accepted only from this extension's worker.
+- **Direct first, bounded retry.** Raw text and rich HTML are written in the tab
+  first. Only a rejection forwards the identical payload, capped at **32 MiB**,
+  to the worker/offscreen document. Larger data is not read into a fallback
+  message or truncated. A failed retry preserves the original browser error.
+- **No new data destination.** The payload moves only within the extension. The
+  offscreen document performs no network, storage or clipboard-read operation,
+  never assigns captured markup to `innerHTML`, and returns only success/failure.
+  The worker serializes writes and closes the document after each answer.
+- **Existing boundaries retained.** Capture code remains raw `outerHTML`; rich
+  `figmeta`/`figh2d` encoding is unchanged; password and nonvisual form-value
+  redaction, asset URL policy, CSP, host permissions and storage schema are
+  unchanged. Toasts use text content and the picker ignores extension UI.
+- **Verification:** `npm test` — **341 checks, 0 failures**. A dedicated real-MV3
+  Chromium fixture was added for form/media/pseudo fidelity, keyboard selection
+  and actual offscreen recovery. This environment only provided an npm-packaged
+  headless-shell binary without extension/chrome-URL support, so no local
+  Chromium-suite pass is claimed here.
+- **Inventory:** **26 files / 785,034 bytes**, of which **15 JavaScript
+  files / 411,000 bytes**. Manifest version is **1.9.0**.
 
 ## 1.8.5 — recovery, not silent failure
 

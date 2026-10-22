@@ -9,8 +9,8 @@ No account, no server, no telemetry, no uploads.</p>
 <p align="center">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
-  <img src="https://img.shields.io/badge/version-1.8.5-0d99ff" alt="version 1.8.5">
-  <img src="https://img.shields.io/badge/tests-313%20passing-brightgreen" alt="313 checks passing">
+  <img src="https://img.shields.io/badge/version-1.10.0-0d99ff" alt="version 1.10.0">
+  <img src="https://img.shields.io/badge/tests-361%20passing-brightgreen" alt="361 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -38,6 +38,7 @@ No account, no server, no telemetry, no uploads.</p>
 |---|---|
 | **Try it** (2 minutes) | [Install](#install-2-minutes) |
 | **Understand what it does** | [What you get](#what-you-get) · [How a capture works](#how-a-capture-works) |
+| **Copy a separate HTML payload for Paper** | [Paper HTML](#paper-html-separate-action) · [Compatibility status](docs/PAPER-EXPORT.md) |
 | **Capture several widths** | [Viewports](#viewports-responsive-widths) |
 | **Capture a dashboard's inner scroller** | [Scroll area](#scroll-area) |
 | **Get a design system out of a page** | [Design system](#design-system) |
@@ -48,7 +49,7 @@ No account, no server, no telemetry, no uploads.</p>
 | **See what's missing** (honest list) | [Known limits](#known-limits) |
 | **Fix a problem** | [docs/FAQ.md](docs/FAQ.md) |
 
-> **Status: 1.8.5, source-distributed.** Not on the Chrome Web Store yet, so you
+> **Status: 1.10.0, source-distributed.** Not on the Chrome Web Store yet, so you
 > load it from this folder. Everything runs in your browser.
 
 ---
@@ -74,14 +75,15 @@ capture without handing their browsing data to a service.
 
 | | |
 |---|---|
-| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, canvas, video placeholders and open shadow roots. |
-| **Select element** | Pick one element with the pointer; `↑`/`↓` adjust the selection. Produces the same editable model, scoped to that element. |
+| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, current form state, canvas/video pixels, `::before`/`::after` and open shadow roots. |
+| **Select element** | Pick with the pointer; `↑` moves to the parent, `↓` descends or moves to the next sibling, **Enter** confirms and **Escape** cancels. Produces the same editable model, scoped to that element. |
 | **Capture scroll area** | Click *anywhere inside* a nested vertical scroller and capture its entire 2,000px+ content, not just the visible slice. |
 | **Capture code** | Deliberately raw `document.documentElement.outerHTML`. No filtering — it is what it says. |
 | **Viewports** | Check 1600 / 1440 / 1024 / 768 / 393 (editable, 200–3840px) and capture each width in one copy. No new tabs, no reloads, no resizing of the live page. |
 | **Design system** | Extracts tokens in six categories, lets you rename, merge and exclude, then copies one editable reference board. |
 | **Wireframe** | A check-box in the **Viewports** popover: tick it, pick **Low / Medium / High**, then **Capture design** as usual. The same copy writes greyscale, editable layers at every checked width — no screenshots, no images, no page CSS. |
-| **Copy all / per-item copy** | The tray keeps captures per tab; copy one, several or everything, as design layers or as code. |
+| **Copy all / per-item copy** | The tray keeps captures per tab; copy one, several or everything, as design layers or as code. Figma stays the default rich payload. |
+| **Copy for Paper** | A separate, explicit action exports the latest design snapshot as sanitized inline HTML + plain text through the same resilient clipboard writer. [Paper paste verification is pending](docs/PAPER-EXPORT.md). |
 | **Honest feedback** | After a copy: "Copied to clipboard · Images: 12 included, 1 not embedded". Failures name themselves instead of silently truncating. |
 | **Local everything** | `chrome.storage.local` for the tray, clipboard for output, nothing else. |
 
@@ -118,10 +120,11 @@ injected; injected code is only replaced on reload or navigation.
 ## How a capture works
 
 ```
-click  →  inject 7 scripts  →  walk the DOM in rAF  →  resolve image sources
+click  →  inject 13 scripts  →  pause running animations  →  walk the DOM in rAF
+       →  report real phases + yield every 200 nodes  →  resolve image sources
        →  expand the model (full page / scroll area)  →  serialize + bound the
           UTF-8 size  →  recover missing assets in batches of 64  →  store in the
-          tab's tray  →  write one text/html clipboard payload on Copy
+          tab's tray  →  restore animations  →  write the selected payload on Copy
 ```
 
 Two things are worth knowing:
@@ -129,6 +132,12 @@ Two things are worth knowing:
 - **Only the serialized model is expanded**, never the live page. A full-page or
   scroll-area capture does not scroll, resize or navigate anything you are
   looking at.
+- **Motion is frozen only for the capture.** Running animations hold their
+  capture-start frame and resume in `finally`, including after cancellation or
+  errors. The extension does not force reduced-motion styles onto the page.
+- **Progress is real work, not a simulated percentage.** The busy view follows
+  image/layout/asset/finalization phases, and the one existing DOM walk yields
+  cooperatively instead of running a dry run followed by a second serialization.
 - **Nothing is truncated silently.** Every batch has a budget and a clear error
   instead of a partial paste.
 
@@ -139,11 +148,40 @@ Two things are worth knowing:
 | Nodes per responsive copy | 50,000 | `viewports.js` |
 | CSS per responsive copy | 5 MiB | `viewports.js` |
 | Rich batch | 48 MiB JSON / 64 MiB HTML | `capture-safety.js` |
+| Paper HTML projection | 100,000 nodes / 24 MiB output characters; 32 MiB combined clipboard recovery bound | `html-export.js`, `clipboard.js` |
 | Design-system board | 16 MiB, 480 tokens, 200,000px tall | `design-system-board.js` |
 | Wireframe | 20,000 layers, depth 60, 48-char ids, 2,000-char text, ±1,000,000px / 200,000px per side, 16 MiB copy budget | `wireframe-core.js`, `wireframe.js` |
 | Asset recovery | 64 URLs per request, 10 MiB each, 5s | `background.js` |
 
 Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Paper HTML (separate action)
+
+**Copy for Paper** exports only the latest design snapshot. It does not replace
+or augment the Figma representation in the same clipboard item, and it never
+changes **Capture code**:
+
+| Action | Rich output |
+|---|---|
+| Automatic copy, **Copy**, per-item design copy | Existing `figmeta` / `figh2d` Figma payload |
+| **Copy for Paper** | Sanitized standalone inline HTML + `text/plain` |
+| **Capture code** | Raw `document.documentElement.outerHTML` as text |
+
+The Paper projector uses the sanitized capture model, computed inline styles,
+visible form state, pseudo-element text and embedded raster assets. It strips
+scripts, handlers, active embeds, unsafe URLs, hidden/password values and
+pre-existing `x-paper-*` subtrees. It does not inject serialized SVG source or
+claim raster-to-vector/editable-SVG conversion. The existing direct/offscreen
+clipboard writer, cancellation and size failures are reused. Wireframe remains a
+Figma-payload setting; Copy for Paper projects the stored design snapshot rather
+than applying a second greyscale transform.
+
+**Compatibility status:** actual Paper paste behavior and whether the current
+`<x-paper-html>` candidate wrapper is required are **not yet verified**. See
+[the four-case probe and security boundaries](docs/PAPER-EXPORT.md) before
+claiming Paper compatibility.
 
 ---
 
@@ -251,7 +289,7 @@ How it works:
   arriving silently short.
 - **Repeatable.** Copying the same capture twice produces byte-identical layers;
   the capture you were given is never edited.
-- **Honest about itself.** The popover names the build (`Wireframe v1.8.5 · hook
+- **Honest about itself.** The popover names the build (`Wireframe v1.10.0 · hook
   live`) and, after a copy, how many records it rebuilt. A copy that silently
   produced the page is flagged in red instead of reported as success.
 - **Reversible.** The stored capture is untouched, so unchecking the option and
@@ -289,13 +327,19 @@ claims on every push.
 figextenison/
 ├── README.md                    ← you are here
 ├── extension/                   ← ONLY what Chrome loads. Load unpacked points here.
-│   ├── manifest.json            MV3, Chrome 116+, 5 permissions
-│   ├── options.html             permission / status page
+│   ├── manifest.json            MV3, Chrome 116+, 6 permissions
+│   ├── options.html             permission / status page (not the capture UI)
+│   ├── offscreen.html           short-lived local clipboard recovery document
 │   ├── js/
-│   │   ├── background.js        service worker: 6 message handlers, injection
+│   │   ├── background.js        service worker: 7 message handlers, injection
 │   │   ├── core.js              shared constants, storage keys, options URL
 │   │   ├── privacy.js           asset-URL policy (blocked hosts, private ranges)
 │   │   ├── capture-safety.js    redaction, cancellation, budgets, clipboard prep
+│   │   ├── clipboard.js         direct write + bounded offscreen retry
+│   │   ├── offscreen.js         worker-only rich/text clipboard writer
+│   │   ├── capture-stability.js capture-scoped animation pause/restoration
+│   │   ├── html-export.js       pure sanitized capture-model → HTML projector
+│   │   ├── picker-navigation.js composed-DOM keyboard traversal
 │   │   ├── viewports.js         responsive copies, lazy images, asset batches
 │   │   ├── design-system-core.js  token extraction + review logic (pure)
 │   │   ├── design-system-board.js editable board + clipboard payload
@@ -309,12 +353,13 @@ figextenison/
 │   ├── ARCHITECTURE.md          which file owns what, message protocol, pipeline
 │   ├── FAQ.md                   "is this a bug?" and how to verify privacy
 │   ├── TESTING.md               unit + browser suites, fixtures, CI
+│   ├── PAPER-EXPORT.md          Paper boundaries + four-case paste probe
 │   ├── SCREENSHOTS.md           image status + how to retake them
 │   ├── GITHUB_SETUP.md          repo settings, releases, upload mistakes
 │   ├── PRIVACY-AUDIT.md         long-form privacy verification per release
 │   ├── screenshots/             images used above
 │   └── brand/                   icon, cover, social preview
-├── tests/                       10 unit suites + 10 Chromium suites + fixtures
+├── tests/                       15 unit suites + 11 Chromium suites + fixtures
 ├── scripts/                     check-docs.js, pack.js
 ├── .github/workflows/ci.yml     what runs on every push and tag
 ├── CHANGELOG.md · CONTRIBUTING.md · PRIVACY.md · SECURITY.md · LICENSE (MIT)
@@ -329,7 +374,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 313 dependency-free checks, no install, ~1s
+npm test          # 361 dependency-free checks, no install, ~3s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -351,13 +396,17 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **313 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **361 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
-  review, board payload, wireframe transform/options/clipboard hook, locale
-  coverage, no onboarding.
-- **10 Chromium suites** — real toolbar injection, native rich clipboard payloads,
+  review, board payload, wireframe transform/options/clipboard hook, form/media
+  fidelity, picker traversal, offscreen clipboard recovery, animation rollback,
+  real traversal progress, sanitized Paper HTML projection, locale coverage and
+  no onboarding.
+- **11 Chromium suites** — real toolbar injection, native rich clipboard payloads,
   real 1280/768/393px output, source DOM/scroll/focus preservation, denied-copy
-  recovery, cancellation, zero remote requests from fixtures.
+  handling and offscreen recovery, form/canvas/video/pseudo-element fidelity,
+  animation restoration, phase feedback, Paper HTML recovery, keyboard picking,
+  cancellation and zero remote requests from fixtures.
 
 Full breakdown: [docs/TESTING.md](docs/TESTING.md).
 
@@ -385,9 +434,15 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
   Text wrapping can shift slightly if the substitute font is wider. The tray
   thumbnail still shows the original page.
 - **Clipboard writes are final once submitted.** Chrome cannot revoke a native
-  write; cancel works up to that point.
+  write; cancel works up to that point. If a direct write is rejected, a local
+  offscreen retry handles up to **32 MiB**; larger payloads need a focused tab
+  and are never silently truncated.
 - **No live Figma paste test.** Clipboard payloads are verified natively, but the
   final paste into Figma is a manual step and is not covered by CI.
+- **Paper compatibility is still a probe, not a claim.** The separate HTML
+  payload and recovery are tested, but actual Paper paste behavior and the
+  required wrapper have not been verified. Serialized SVG source is skipped;
+  this action does not create editable vectors from raster images.
 - **Chromium only.** Edge usually works; Firefox and Safari are untested. The
   extension needs MV3 service workers, so Chrome 116+.
 - **Store distribution is not set up.** This is source-distributed today.

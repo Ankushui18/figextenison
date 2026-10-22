@@ -71,10 +71,10 @@ function workerHarness() {
   };
 }
 
-test('Only the six local capture RPCs remain', () => {
+test('Only the seven local capture RPCs remain', () => {
   const harness = workerHarness();
   const commands = Array.from(vm.runInContext('Object.keys(handlers).sort()', harness.context));
-  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED']);
+  assert.deepEqual(commands, ['H2D_CAPTURE_ELEMENT_PREVIEW', 'H2D_CAPTURE_VISIBLE_TAB', 'H2D_FETCH_ASSETS', 'H2D_GET_TAB_ID', 'H2D_OPEN_TOOLBAR', 'H2D_TOOLBAR_CLOSED', 'H2D_WRITE_CLIPBOARD']);
 });
 test('Removed account, upload, calendar and telemetry commands cannot execute', async () => {
   const harness = workerHarness();
@@ -114,7 +114,7 @@ test('Recovery rejects malformed and unbounded asset lists', async () => {
   assert.equal(harness.calls.length, 0);
 });
 test('Capture engine keeps local clipboard formats, not removed telemetry helpers', () => {
-  const toolbar = read('js/h2d_toolbar.js') + read('js/capture-safety.js');
+  const toolbar = read('js/h2d_toolbar.js') + read('js/capture-safety.js') + read('js/clipboard.js');
   assert.match(toolbar, /clipboard\.writeText\(/);
   assert.match(toolbar, /clipboard\.write\(/);
   assert.match(toolbar, /figh2d/);

@@ -1055,12 +1055,15 @@ test('Wireframe is injected before the toolbar, with no extra toolbar hook', () 
   assert.ok(order.indexOf('js/wireframe-core.js') < order.indexOf('js/wireframe.js'));
   assert.ok(order.indexOf('js/wireframe.js') < order.indexOf('js/h2d_toolbar.js'));
   assert.ok(order.indexOf('js/capture-safety.js') < order.indexOf('js/wireframe.js'));
+  assert.ok(order.indexOf('js/capture-safety.js') < order.indexOf('js/clipboard.js'));
+  assert.ok(order.indexOf('js/clipboard.js') < order.indexOf('js/design-system-board.js'));
+  assert.ok(order.indexOf('js/picker-navigation.js') < order.indexOf('js/h2d_toolbar.js'));
   const toolbar = read('js/h2d_toolbar.js');
   assert.doesNotMatch(toolbar, /PageCaptureWireframe/);
   const designSystem = read('js/design-system.js');
   assert.doesNotMatch(designSystem, /Wireframe|wireframe/);
   const manifest = JSON.parse(read('manifest.json'));
-  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
+  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite', 'offscreen']);
 });
 
 test('A choice made while storage is still loading is not overwritten', async () => {

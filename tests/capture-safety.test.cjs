@@ -235,8 +235,8 @@ test('The board encoder forwards the same active signal to metadata and snapshot
   await sandbox.PageCaptureDesignBoard.makeClipboardHtml(JSON.stringify(doc([])), async (text, active) => { passed.push(active); return encode(text); }, signal);
   assert.equal(passed.length, 2); assert.ok(passed.every(active => active === signal));
 });
-test('Permissions, CSP, six-RPC allowlist and raw HTML content are not loosened by safety work', () => {
-  const manifest = JSON.parse(read('manifest.json')); assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']); assert.match(manifest.content_security_policy.extension_pages, /connect-src 'self'/);
-  assert.match(read('js/h2d_toolbar.js'), /let html=document.documentElement.outerHTML;await navigator.clipboard.writeText\(html\)/);
+test('Permissions, CSP, RPC allowlist and raw HTML content stay explicit after clipboard recovery work', () => {
+  const manifest = JSON.parse(read('manifest.json')); assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite', 'offscreen']); assert.match(manifest.content_security_policy.extension_pages, /connect-src 'self'/);
+  assert.match(read('js/h2d_toolbar.js'), /let html=document.documentElement.outerHTML;await globalThis.PageCaptureClipboard.writeText\(html\)/);
   assert.doesNotMatch(read('js/capture-safety.js'), /\bfetch\s*\(|XMLHttpRequest|sendBeacon|window\.open|figma\.variables/);
 });

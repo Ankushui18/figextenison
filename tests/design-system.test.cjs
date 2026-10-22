@@ -138,10 +138,11 @@ test('Toolbar regression baseline retains board/responsive/full-page/scroll-area
   assert.equal(toolbar.split(hook).length - 1, 1);
   assert.equal(toolbar.split(flag).length - 1, 1);
   assert.doesNotMatch(toolbar, /PageCaptureWireframe/);
-  assert.match(toolbar, /success&&o\(__vpCopySuccessMessage\(d\)\)/);
+  assert.match(toolbar, /success&&o\(htmlProjection\?"Paper HTML copied":__vpCopySuccessMessage\(d\)\)/);
   assert.match(toolbar, /function __vpCopySuccessMessage\(records\)/);
-  // 1.8.5 recovery/copy deltas are stripped too, so this hash still proves that
-  // nothing *else* in the shipped toolbar changed. Each delta has its own test below.
+  // The 1.10.0 stabilization, progress and explicit Paper-action changes
+  // establish a new baseline. Earlier recovery deltas are stripped so this hash
+  // continues to guard every unrelated toolbar byte. Each new behavior has tests.
   const recover = [
     ['function __h2dLiveHost(e){try{return!0===e?.__h2dToolbarLive}catch{return!1}}', ''],
     ['function __h2dDropStaleHost(){let e=document.getElementById(bt);e&&!__h2dLiveHost(e)&&e.remove()}', ''],
@@ -158,7 +159,7 @@ test('Toolbar regression baseline retains board/responsive/full-page/scroll-area
     .replace(flag, 'scrollbarManager:new ft({analyticsTimer:L=>o("sb",L)})')
     .replace(guardedSend, plainSend);
   const hash = crypto.createHash('sha256').update(original).digest('hex');
-  assert.equal(hash, '03c68f424609c68345e5c9beacba18343c7ddfa657e299c0e39d2ab0f6410a51');
+  assert.equal(hash, '7fd4fb073c76f8f0985c1d611c3ab2cd371a44b2a805bd8aa403ce3bdcac39c2');
 });
 test('A toolbar left by a previous extension instance is replaced instead of shadowing the new one', () => {
   const toolbar = fs.readFileSync(path.join(root, 'js/h2d_toolbar.js'), 'utf8');
@@ -186,11 +187,11 @@ test('A dead extension context asks for a reload instead of rejecting with a bar
   const busy = toolbar.indexOf('A clipboard write is already in progress');
   assert.ok(guard > 0 && busy > guard);
 });
-test('Scanner/review modules have no network or clipboard APIs; permissions are unchanged', () => {
+test('Scanner/review modules have no network or clipboard APIs; only the reviewed offscreen permission is added', () => {
   const ui = fs.readFileSync(path.join(root, 'js/design-system.js'), 'utf8');
   assert.doesNotMatch(ui + source, /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|clipboard\.(?:write|read)/);
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
-  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite']);
+  assert.deepEqual(manifest.permissions, ['storage', 'tabs', 'unlimitedStorage', 'scripting', 'clipboardWrite', 'offscreen']);
 });
 
 test('Border variable matching normalizes computed RGB values', () => {

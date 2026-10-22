@@ -12,13 +12,17 @@ There is no build step. Every file below is shipped exactly as it is.
 chrome://extensions  →  extension/  (manifest.json, service worker, assets)
       │
       ├── service worker   js/background.js   + js/core.js + js/privacy.js
-      │        │  chrome.scripting.executeScript  (7 files, in order)
+      │        │  chrome.scripting.executeScript  (13 files, in order)
       │        ▼
       └── isolated world in the page (the toolbar and all capture code)
-               js/privacy.js → js/capture-safety.js → js/design-system-core.js
-               → js/design-system-board.js → js/design-system.js
-               → js/viewports.js → js/wireframe-core.js → js/wireframe.js
-               → js/h2d_toolbar.js
+               js/privacy.js → js/capture-safety.js → js/clipboard.js
+               → js/design-system-core.js → js/design-system-board.js
+               → js/design-system.js → js/viewports.js → js/wireframe-core.js
+               → js/wireframe.js → js/capture-stability.js → js/html-export.js
+               → js/picker-navigation.js → js/h2d_toolbar.js
+
+A failed direct clipboard write can additionally use the worker's short-lived
+`offscreen.html` + `js/offscreen.js` document. That path is local and write-only.
 ```
 
 The **options page** (`options.html` + `js/core.js` + `js/options.js`) is a
@@ -29,10 +33,15 @@ capture back to the worker.
 
 | File | Role | Size class |
 |---|---|---|
-| `js/background.js` | service worker: 6 message handlers, toolbar injection, tab previews, asset recovery | small, readable |
+| `js/background.js` | service worker: 7 message handlers, toolbar injection, tab previews, asset recovery, offscreen ownership | small, readable |
 | `js/core.js` | shared constants (permission set, storage keys, options URL builder) | small, readable |
 | `js/privacy.js` | asset-URL policy: blocked hosts, private ranges, `data:`/`blob:` handling | small, readable |
 | `js/capture-safety.js` | redaction, cancellation, size budgets, clipboard preparation, saved-record migration | medium, readable |
+| `js/clipboard.js` | direct rich/text writes, bounded conversion to a local offscreen retry | small, readable |
+| `js/capture-stability.js` | running-animation freeze and idempotent restoration across document/open shadow roots | small, readable |
+| `js/html-export.js` | pure, sanitized capture-model → inline HTML/plain-text projection, independent of Chrome APIs | medium, readable |
+| `offscreen.html` + `js/offscreen.js` | short-lived worker-only clipboard document, asynchronous write then copy-event fallback | small, readable |
+| `js/picker-navigation.js` | parent / child-or-sibling traversal across open composed-DOM boundaries | small, readable |
 | `js/viewports.js` | responsive copy rendering, lazy-image resolution, asset batching, full-page and scroll-area expansion | medium, readable |
 | `js/design-system-core.js` | pure token extraction/review/merge logic (no DOM, no network) | medium, readable |
 | `js/design-system-board.js` | builds the editable board and the `text/html` clipboard payload | medium, readable |
@@ -54,8 +63,8 @@ closed shadow root, adds a menu entry, and cleans up on
 The wireframe module needs none of that. It is a **capture setting**, so it only
 touches two seams that already exist: the Viewports popover (decorated when it
 opens) and `PageCaptureSafety.prepareClipboard` (wrapped once, at injection).
-`h2d_toolbar.js` and `design-system.js` are unchanged, which the toolbar hash
-test verifies byte for byte.
+The wireframe integration needs no additional edits in `h2d_toolbar.js` or
+`design-system.js`; the toolbar hash test still guards unrelated byte drift.
 
 ## Message protocol
 
@@ -70,6 +79,7 @@ frozen in `background.js`:
 | `H2D_CAPTURE_VISIBLE_TAB` | tab frame 0 | PNG preview of the visible tab |
 | `H2D_CAPTURE_ELEMENT_PREVIEW` | tab frame 0 | cropped preview for a selected element's rect |
 | `H2D_FETCH_ASSETS` | tab frame 0 | batched `GET` recovery for page images (supports `requestId` + `cancel`) |
+| `H2D_WRITE_CLIPBOARD` | tab frame 0 | bounded, user-initiated rich/text retry through the offscreen writer |
 | `H2D_TOOLBAR_CLOSED` | tab frame 0 | clear the tab's "toolbar open" flag |
 
 Unknown commands get a generic failure and are never dispatched. Asset jobs are
@@ -79,15 +89,24 @@ Downward, the worker sends `{ type: "FIGMA_H2D_TOOLBAR_COMMAND", command }`
 (`capture_code`, `capture_page`, `select_element`) to run a keyboard-shortcut
 command after injection.
 
+`H2D_OFFSCREEN_WRITE` is a separate internal message, not a public RPC. The
+offscreen document accepts it only from `js/background.js`; the worker's own
+listener deliberately leaves that channel unanswered so the document can reply.
+
 ## Capture pipeline
 
 1. **Trigger.** Toolbar button, keyboard command, or `chrome.action` click.
-2. **Inject.** `background.js` checks the URL and permissions, injects the seven
+2. **Inject.** `background.js` checks the URL and permissions, injects the thirteen
    files in the order above, and sets the tab's "open" flag.
-3. **Build the model.** `h2d_toolbar.js` walks the DOM in a `requestAnimationFrame`
-   (so layout is settled), producing a version-2 snapshot: nodes with
-   `rect`, `styles`, `computedStyles`, `attributes`, text, pseudo-elements,
-   canvas/video placeholders, and a per-document `assets` map.
+3. **Stabilize and build the model.** `capture-stability.js` pauses only running
+   animations at their current frame. `h2d_toolbar.js` then walks the DOM in a
+   `requestAnimationFrame` (so layout is settled), producing a version-2 snapshot:
+   nodes with `rect`, `styles`, `computedStyles`, `attributes`, text,
+   pseudo-elements, canvas/video placeholders, and a per-document `assets` map.
+   The one existing walk yields every 200 visited nodes and reports its real
+   layout phase/visited count. An outer `finally` restores animations on every
+   success, cancellation, timeout or error; no dry run or second serialization
+   is performed.
 4. **Reference images.** `viewports.js` resolves the real image source: loaded
    source first, then explicit lazy metadata, then active `<picture>` sources.
    Nothing is guessed and the live DOM is not edited.
@@ -100,9 +119,19 @@ command after injection.
    counts UTF-8 bytes against the 48 MiB / 64 MiB budgets before encoding.
 8. **Store.** The snapshot is pushed into the tab's tray in
    `chrome.storage.local`.
-9. **Copy.** On copy, the tray is turned into one `text/html` payload and written
-   with `navigator.clipboard.write`. The success notice adds the image
-   included/not-embedded counts.
+9. **Copy for Figma (default).** Automatic copy, Copy all and per-item design copy
+   turn the tray into the original `figmeta`/`figh2d` `text/html` payload and
+   write it with `navigator.clipboard.write`. A rejection can retry the identical
+   payload (up to 32 MiB) through the local offscreen writer; nothing is
+   truncated. The success notice adds the image included/not-embedded counts.
+10. **Copy for Paper (explicit alternative).** Only the latest snapshot is parsed,
+    sanitized again and passed to `html-export.js`. That pure projector returns a
+    separate inline-HTML fragment and plain text; it never calls the Figma
+    `prepareClipboard` branch or reads raw `outerHTML`. The same capture session,
+    cancellation, direct/offscreen writer and failure cleanup then write the two
+    representations. Actual Paper acceptance and the wrapper requirement remain
+    destination-verification steps, not assumptions in the serializer. See
+    [Paper export](PAPER-EXPORT.md) for the security boundaries and probe matrix.
 
 ## Cancellation
 
@@ -110,8 +139,25 @@ One `AbortController` per capture session (`captureSession` in the toolbar).
 Its signal is threaded through image decoding, detached conversion, asset
 recovery (`requestId` + `cancel`), clipboard preparation and serialization.
 Cancelling releases owned resources; a cancelled job cannot produce feedback for
-a newer one. **A native clipboard write already submitted to Chrome cannot be
+a newer one. Animation restoration is owned by the serializer's `finally`, and
+both DOM traversal and HTML projection check cancellation at cooperative yield
+points. **A native clipboard write already submitted to Chrome cannot be
 revoked** — the UI disables Cancel for that final phase.
+
+## Clipboard recovery
+
+`PageCaptureClipboard.write` / `writeText` always try the source tab first. Only
+a rejection starts recovery. Rich items are read back from their already-created
+`Blob` (never from the system clipboard), bounded to 32 MiB, and sent to the
+worker. Raw text follows the same bound. If the item is too large or not HTML,
+the original browser error is preserved.
+
+The worker validates the top-frame sender and payload, serializes offscreen
+writes, and closes the document in `finally`. The offscreen document validates
+the worker URL again, tries the asynchronous API, then uses a temporary textarea
+plus a `copy` event to set `text/html` and `text/plain`. Captured markup is never
+assigned to `innerHTML`, executed, stored, or included in an error response.
+Closing the document cannot undo a write Chrome already accepted.
 
 ## Responsive copies
 
@@ -178,6 +224,8 @@ Capture design ─► engine builds the snapshot(s) ─► PageCaptureSafety.pre
 | redaction of form values | `js/capture-safety.js` |
 | which asset hosts are refused | `js/privacy.js` |
 | a new message handler | `handlers` in `js/background.js` **and** a test in `tests/privacy.test.cjs` |
+| clipboard recovery or its byte limit | `js/clipboard.js`, `js/offscreen.js`, `js/background.js` + `tests/clipboard.test.cjs` |
+| picker keyboard traversal | `js/picker-navigation.js` + its focused unit/browser fixtures |
 | what a capture contains | the walker in `js/h2d_toolbar.js` + a fixture test |
 | the permission/options flow | `js/core.js`, `js/options.js`, `background.js` |
 

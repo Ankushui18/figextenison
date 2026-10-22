@@ -21,8 +21,8 @@ time for a fix before disclosing publicly.
 In scope:
 
 - the extension runtime in `extension/` (service worker, injected scripts,
-  options page);
-- the local message protocol (six RPCs) and the capture/serializer path;
+  options page, short-lived offscreen clipboard document);
+- the local message protocol (seven RPCs) and the capture/serializer path;
 - the extension's storage and clipboard handling;
 - the restrictive extension CSP and asset-fetch policy;
 - privilege boundaries in the responsive-capture iframe and Design System frame.
@@ -31,7 +31,7 @@ Out of scope:
 
 - a website's own scripts, tracking or network behaviour;
 - content you deliberately copy out and paste elsewhere;
-- Figma's behaviour after a paste (this repo never talks to Figma);
+- Figma's or Paper's behaviour after a paste (this repo never talks to either);
 - missing fidelity in a capture (see "Known limits" in the README);
 - vulnerabilities that require an already-compromised browser profile.
 
@@ -43,14 +43,22 @@ These are enforced by tests where practical:
 - **Asset fetches are `GET`, credential-less, no-referrer, redirect-rejected.**
   Blocked hosts and private address ranges are refused before `fetch`.
 - **Message handlers are allowlisted.** Unknown `cmd` values are answered with a
-  generic failure; asset jobs are bound to the sending tab and frame.
+  generic failure; asset jobs are bound to the sending tab and frame. Clipboard
+  recovery accepts only top-frame tab requests, and its internal offscreen
+  message accepts only the extension worker. Payloads are bounded and never
+  included in errors.
 - **Captured page content never becomes executable UI.** Generated board HTML is
   built in a script-disabled frame with `connect-src 'none'`.
 - **No `innerHTML` on captured text.** Page text and attributes are sanitized
   before they reach the DOM of the panel.
+- **Paper/HTML is generated only from the sanitized capture model.** The pure
+  projector escapes text/attributes, removes active content, handlers,
+  dangerous URLs and pre-existing `x-paper-*` tags, and never injects raw
+  `outerHTML` or serialized SVG source. It is a separate action; Figma
+  `figmeta`/`figh2d` and raw Capture code retain their existing contracts.
 - **CSP stays restrictive.** `connect-src 'self'` is not relaxed for convenience.
 
 ## Supported versions
 
-Only the current `main` build (currently 1.7.9) is supported. The extension is
+Only the current `main` build (currently 1.10.0) is supported. The extension is
 distributed as source in this repository; there is no store build yet.

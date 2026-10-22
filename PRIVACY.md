@@ -13,10 +13,10 @@ per-release verification counts, is in
 Nothing, unless you paste it somewhere. There is no analytics client, no crash
 reporting, no remote logging and no Figma API call in the runtime.
 
-The service worker has exactly six local message handlers
+The service worker has exactly seven local message handlers
 (`H2D_GET_TAB_ID`, `H2D_OPEN_TOOLBAR`, `H2D_CAPTURE_VISIBLE_TAB`,
-`H2D_CAPTURE_ELEMENT_PREVIEW`, `H2D_FETCH_ASSETS`, `H2D_TOOLBAR_CLOSED`). None of
-them sends data anywhere.
+`H2D_CAPTURE_ELEMENT_PREVIEW`, `H2D_FETCH_ASSETS`, `H2D_WRITE_CLIPBOARD`,
+`H2D_TOOLBAR_CLOSED`). None of them sends data anywhere.
 
 ## The one kind of network request
 
@@ -76,14 +76,27 @@ they are part of the design.
 
 **This is not general PII redaction.** Visible text, page titles, links and image
 URLs are copied as-is. **Capture code** is intentionally raw: it copies
-`document.documentElement.outerHTML` without the privacy filter.
+`document.documentElement.outerHTML` without the privacy filter. The explicit
+Paper action re-sanitizes the saved model and independently blocks active HTML,
+handlers, dangerous URLs and hidden/password values, but visible page content
+and ordinary visible form values still leave the machine when you paste them.
 
 ## Clipboard
 
-- Rich **Copy** / **Copy all** writes one `text/html` clipboard payload. The
-  extension never reads your clipboard.
+- Rich **Copy** / **Copy all** writes the existing Figma `text/html` payload.
+  The separate **Copy for Paper** action writes only its own sanitized inline
+  HTML plus `text/plain` for the latest snapshot. Neither action changes raw
+  **Capture code**, and the extension never reads your clipboard.
+- Direct writes run first. After a rejection, up to **32 MiB** of the exact same
+  text/HTML can be forwarded inside the extension to a short-lived offscreen
+  document. It accepts only a worker-originated write job, does not parse or
+  persist the payload, and closes afterward. Larger content is never truncated.
 - A native write that Chrome has already accepted cannot be revoked. Cancelling
-  during preparation stops the write before it starts.
+  during preparation stops the write before it starts; the recovery path does
+  not change that rule.
+- Paper HTML prefers embedded capture assets but can retain a safe HTTP(S) image
+  or CSS URL when no bytes were embedded. The extension makes no additional
+  Paper request; the destination may resolve that URL after your paste.
 - `clipboardWrite` is requested at runtime through the options page; if you deny
   it, automatic copy is skipped and the capture stays in the tray for manual
   **Copy all**.
@@ -97,8 +110,10 @@ URLs are copied as-is. **Capture code** is intentionally raw: it copies
 | `tabs` | identify the capture source tab and its preview |
 | `storage`, `unlimitedStorage` | keep the local capture tray |
 | `clipboardWrite` | write the design/HTML clipboard payload |
+| `offscreen` | retry an explicitly requested write when the tab cannot complete it |
 
-No `pageCapture`, no `downloads`, no `webRequest`, no remote `host_permissions`
+No `clipboardRead`, `pageCapture`, `downloads`, `webRequest`, or remote
+`host_permissions`
 beyond the page you are capturing.
 
 ## Local files

@@ -161,6 +161,6 @@ test('Full-page normalization is opt-in for element captures; raw HTML and board
   assert.match(toolbar, /for\(let x=p;x&&x!==document\.documentElement;x=x\.parentElement\|\|x\.getRootNode\(\)\.host\)if\(sa\(x\)\)\{p=x;break\}/);
   assert.match(toolbar, /"capture_page","select_element","select_scroll_area"/);
   assert.match(toolbar, /attributes:imageUrl\?\{\.\.\.\$c\(t\),currentSrc:imageUrl\}:\$c\(t\)/);
-  assert.match(toolbar, /let html=document.documentElement.outerHTML;await navigator.clipboard.writeText\(html\)/);
+  assert.match(toolbar, /let html=document.documentElement.outerHTML;await globalThis.PageCaptureClipboard.writeText\(html\)/);
   const board = fs.readFileSync(path.join(root, 'js/design-system-board.js'), 'utf8'); assert.doesNotMatch(board, /captureFullPage/);
 });

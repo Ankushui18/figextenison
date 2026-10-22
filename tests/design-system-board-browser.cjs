@@ -78,6 +78,11 @@ const decode = html => {
           });
         } };
       } });
+      Object.defineProperty(globalThis, 'PageCaptureClipboard', { configurable: true, get: () => undefined, set(api) {
+        Object.defineProperty(globalThis, 'PageCaptureClipboard', { value: { ...api,
+          write: items => state.mode === 'deny' ? navigator.clipboard.write(items) : api.write(items)
+        } });
+      } });
       const write = navigator.clipboard.write.bind(navigator.clipboard);
       navigator.clipboard.write = async items => {
         state.calls++;
