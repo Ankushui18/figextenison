@@ -15,10 +15,11 @@ the extension never injects into). This script writes each embedded page out as
 a normal .html file, which can then be opened — or served — and captured.
 
 Usage:
-    python3 scripts/unpack-saved-page.py "AI Medicine Reminder.html" out/
+    python3 scripts/unpack-saved-page.py "AI Medicine Reminder.html" out/ --gallery
 
 Writes one file per embedded page, named `<order>-<title-slug>.html`, and
-recurses when an embedded page is itself a bundle. Python 3.8+, stdlib only.
+recurses when an embedded page is itself a bundle. --gallery also writes an
+offline index.html that iframes every extracted page. Python 3.8+, stdlib only.
 """
 from __future__ import annotations
 
@@ -72,6 +73,50 @@ def payloads(text: str) -> list[tuple[str, str, bytes]]:
     return decoded
 
 
+def gallery(work_dir: Path, pages: list[Path], out_dir: Path) -> Path:
+    """An offline index.html: one iframe and one open-link per extracted page."""
+    rows = []
+    for page in pages:
+        name = page.relative_to(work_dir).as_posix()
+        rows.append(
+            '      <figure class="card">'
+            f'<iframe src="{name}" width="390" height="880" loading="eager" title="{name}"></iframe>'
+            f'<figcaption><span>{name}</span><a href="{name}" target="_blank">open ↗</a></figcaption>'
+            "</figure>"
+        )
+    document = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unpacked pages</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  body {{ margin: 0; padding: 40px; background: #141413; color: #f5f4ef;
+         font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }}
+  h1 {{ font-size: 20px; font-weight: 600; margin: 0 0 6px; }}
+  p {{ margin: 0 0 28px; color: #a3a29d; max-width: 70ch; }}
+  .row {{ display: flex; gap: 32px; overflow-x: auto; padding-bottom: 16px; }}
+  .card {{ margin: 0; flex: 0 0 auto; }}
+  iframe {{ display: block; border: 0; border-radius: 44px; background: #fff;
+           box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }}
+  figcaption {{ display: flex; justify-content: space-between; gap: 12px;
+               padding: 10px 4px 0; font-size: 12px; color: #a3a29d; }}
+  figcaption a {{ color: #7aa2ff; text-decoration: none; }}
+</style></head>
+<body>
+  <h1>Unpacked pages</h1>
+  <p>Each saved file hid its screens inside <code>about:blank#uuid</code> frames. These are those
+  pages written out as ordinary files. Open one screen and capture that page — not this gallery.</p>
+  <div class="row">
+{chr(10).join(rows)}
+  </div>
+</body></html>
+"""
+    target = out_dir / "index.html"
+    target.write_text(document, encoding="utf-8")
+    print(f"  write {target} (gallery)")
+    return target
+
+
 def slug(value: str) -> str:
     value = re.sub(r"^\s*\d+\s*[·.:–-]\s*", "", value)  # "01 · Today" -> "Today"
     value = unicodedata.normalize("NFKD", value)
@@ -115,13 +160,16 @@ def unpack_file(source: Path, out_dir: Path, prefix: str = "") -> list[Path]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
+    args = [value for value in argv[1:] if not value.startswith("--")]
+    want_gallery = "--gallery" in argv
+    if not args:
         print(__doc__.strip().splitlines()[0])
-        print(f"usage: {Path(argv[0]).name} <bundle.html | directory> [out_dir]")
+        print(f"usage: {Path(argv[0]).name} <bundle.html | directory> [out_dir] [--gallery]")
         return 2
-    source = Path(argv[1])
-    out_dir = Path(argv[2]) if len(argv) > 2 else Path("unpacked") / slug(source.stem)
+    source = Path(args[0])
+    out_dir = Path(args[1]) if len(args) > 1 else Path("unpacked") / slug(source.stem)
     out_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = out_dir.resolve()
 
     sources = sorted(source.glob("*.html")) if source.is_dir() else [source]
     total = []
@@ -129,6 +177,8 @@ def main(argv: list[str]) -> int:
         print(f"\n{item}")
         prefix = f"{slug(item.stem)}--" if len(sources) > 1 else ""
         total += unpack_file(item, out_dir, prefix)
+    if want_gallery and total:
+        gallery(work_dir, total, out_dir)
     print(f"\n{len(total)} page(s) written to {out_dir}")
     return 0 if total else 1
 
