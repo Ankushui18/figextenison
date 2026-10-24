@@ -17,7 +17,7 @@ function isInjectable(url) {
 async function injectToolbar(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId, frameIds: [0] },
-    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/h2d_toolbar.js"],
+    files: ["js/privacy.js", "js/capture-safety.js", "js/design-system-core.js", "js/design-system-board.js", "js/design-system.js", "js/viewports.js", "js/wireframe-core.js", "js/wireframe.js", "js/embedded-frames.js", "js/h2d_toolbar.js"],
     injectImmediately: true
   });
 }

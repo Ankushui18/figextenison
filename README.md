@@ -10,7 +10,7 @@ No account, no server, no telemetry, no uploads.</p>
   <a href=".github/workflows/ci.yml"><img src="https://github.com/Ankushui18/figextenison/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
   <img src="https://img.shields.io/badge/version-1.8.5-0d99ff" alt="version 1.8.5">
-  <img src="https://img.shields.io/badge/tests-310%20passing-brightgreen" alt="310 checks passing">
+  <img src="https://img.shields.io/badge/tests-317%20passing-brightgreen" alt="317 checks passing">
   <img src="https://img.shields.io/badge/Chrome-116%2B-4285F4" alt="Chrome 116+">
 </p>
 
@@ -74,7 +74,7 @@ capture without handing their browsing data to a service.
 
 | | |
 |---|---|
-| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, canvas, video placeholders and open shadow roots. |
+| **Capture design** | Full page as editable layers, pasted from the rich clipboard. Handles `100%`-height roots, lazy images, canvas, video placeholders, open shadow roots, and same-origin iframes (their own documents are rebuilt inside the frame boxes). |
 | **Select element** | Pick one element with the pointer; `↑`/`↓` adjust the selection. Produces the same editable model, scoped to that element. |
 | **Capture scroll area** | Click *anywhere inside* a nested vertical scroller and capture its entire 2,000px+ content, not just the visible slice. |
 | **Capture code** | Deliberately raw `document.documentElement.outerHTML`. No filtering — it is what it says. |
@@ -329,7 +329,7 @@ mis-placed upload is the most common way this repo breaks.
 ## Quality
 
 ```bash
-npm test          # 310 dependency-free checks, no install, ~1s
+npm test          # 317 dependency-free checks, no install, ~1s
 npm run check     # version handshake, layout, docs links, quoted test counts
 npm run verify    # check + test (what CI runs first)
 npm run pack      # page-capture-<version>.zip from extension/
@@ -351,7 +351,7 @@ Every push and pull request runs [CI](.github/workflows/ci.yml):
 - **Docs** — every relative link and image in the README and `docs/` must resolve.
 - **Quoted counts can't drift** — the test count in the README, `docs/TESTING.md`
   and `CONTRIBUTING.md` is compared with what the suite actually ran.
-- **310 unit checks** — privacy policy, redaction, cancellation, budgets,
+- **317 unit checks** — privacy policy, redaction, cancellation, budgets,
   full-page/scroll-area normalisation, lazy images, viewport presets, token
   review, board payload, wireframe transform/options/clipboard hook, locale
   coverage, no onboarding.
@@ -375,6 +375,13 @@ An honest list. Most of these are browser or clipboard realities, not backlog.
   and it may include the injected toolbar host.
 - **Lazy content that never rendered is not invented.** No infinite-feed
   scrolling, no "Load more" clicking, no virtualized rows.
+- **Iframes only work when the page can read them.** Same-origin frames are
+  rebuilt into the capture; cross-origin, sandboxed and opaque frames are left as
+  empty boxes, because the browser gives no script access to those documents.
+  A page opened from `file://` makes *every* frame opaque, including its own —
+  serve the file over `http://localhost` and the frames become capturable. If a
+  saved export hides its screens in frames (`about:blank#uuid` placeholders),
+  `scripts/unpack-saved-page.py` writes them out as ordinary pages first.
 - **Responsive copies do not replay JavaScript breakpoints.** See
   [Viewports](#viewports-responsive-widths).
 - **Blocked assets stay blocked.** Figma-hosted, Sentry and private-address hosts

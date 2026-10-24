@@ -18,7 +18,7 @@ chrome://extensions  →  extension/  (manifest.json, service worker, assets)
                js/privacy.js → js/capture-safety.js → js/design-system-core.js
                → js/design-system-board.js → js/design-system.js
                → js/viewports.js → js/wireframe-core.js → js/wireframe.js
-               → js/h2d_toolbar.js
+               → js/embedded-frames.js → js/h2d_toolbar.js
 ```
 
 The **options page** (`options.html` + `js/core.js` + `js/options.js`) is a
@@ -39,6 +39,7 @@ capture back to the worker.
 | `js/design-system.js` | the Design System panel UI, and the **More tools** menu | medium, readable |
 | `js/wireframe-core.js` | pure wireframe transform: levels, grey ramps, text bars, placeholders, the capture-model walk | medium, readable |
 | `js/wireframe.js` | the **Wireframe** option inside the Viewports popover, its saved choice, and the clipboard hook that applies the transform | small, readable |
+| `js/embedded-frames.js` | rebuilds same-origin iframe content into the capture, and leaves frames the browser keeps private alone | small, readable |
 | `js/h2d_toolbar.js` | **everything else in the page**: toolbar chrome, capture engine, serializer, picker, viewports popover, clipboard write | large, minified |
 | `js/options.js` | options/permission page controller | small, readable |
 | `options.html`, `img/*`, `font/*`, `_locales/en/messages.json`, `icon*.png` | UI assets and strings | — |
@@ -50,6 +51,18 @@ The Design System panel is a plug-in: the toolbar calls
 `attach(controller, helpers)` once, the panel mounts its own host element in a
 closed shadow root, adds a menu entry, and cleans up on
 `controller.lifecycleAbort`.
+
+The embedded-frames module is the same kind of plug-in as the wireframe hook: it
+decorates two globals the engine already reads, and `h2d_toolbar.js` is
+unchanged. It wraps `PageCaptureDesignBoard.createCopier` to borrow the engine's
+own `capture`/`serialize` (handed over on every toolbar mount), then wraps
+`PageCaptureSafety.prepareClipboard` to rebuild same-origin frames through
+`PageCaptureViewports.createCapturer` before the clipboard is written. It
+installs *after* the wireframe hook, so a wireframe copy receives the rebuilt
+frame content and then transforms it. Frames the page cannot read - cross-origin,
+sandboxed without same-origin, or `blob:` documents with an opaque origin, which
+is what a saved page opened from `file://` produces - are left exactly as the
+engine serialized them.
 
 The wireframe module needs none of that. It is a **capture setting**, so it only
 touches two seams that already exist: the Viewports popover (decorated when it

@@ -9,7 +9,7 @@ that drive the real extension with Playwright.
 npm test          # node --test tests/*.test.cjs
 ```
 
-**310 checks, 0 dependencies, ~1 second.** No install step, no browser.
+**317 checks, 0 dependencies, ~1 second.** No install step, no browser.
 
 | File | Covers |
 |---|---|
@@ -22,6 +22,7 @@ npm test          # node --test tests/*.test.cjs
 | `tests/design-system-polish.test.cjs` | preview scaling, color normalization, typography metrics |
 | `tests/design-system-board.test.cjs` | board layout, clipboard payload shape, limits, manifest version |
 | `tests/wireframe.test.cjs` | the wireframe transform (levels, tones, bars, placeholders, hidden content, scrims/lids, section surfaces, geometry/text bounds, fonts, assets, a bounded-work regression), the Viewports option and its saved choice (late storage, missing pipeline, re-attach, truncation hint, build stamp, miss reporting), the clipboard hook (pass-through, multi-width, failures, idempotence), injection order |
+| `tests/embedded-frames.test.cjs` | the embedded-document hook (idempotence, pass-through, live-document guard, merge arithmetic, parent-realm source facade, failure fallback), injection order |
 | `tests/no-onboarding.test.cjs` | no wizard/onboarding, every locale key resolves |
 
 These tests load the shipped files directly (`extension/js/*.js`) into a `vm`
@@ -73,6 +74,7 @@ case, real timer behaviour. `EXTENSION_ROOT` points a suite at a packaged copy;
 | `scrollarea-child-browser.cjs` | clicking a card inside the scroller |
 | `image-completeness-browser.cjs` | included vs not-embedded asset reporting |
 | `capture-safety-browser.cjs` | redaction, denied copy, manual retry, cancellation |
+| `embedded-frames-browser.cjs` | same-origin iframes rebuilt into the copy, cross-origin frames left empty |
 
 Known flake: `viewports-browser.cjs` can time out while opening the 200px-wide
 panel or waiting for toolbar teardown. The captured logic is unaffected; re-run
@@ -83,7 +85,7 @@ it isolated before treating it as a regression.
 `.github/workflows/ci.yml` runs on every push and pull request:
 
 - `check` + `test` on Node 22 (fast, no browser);
-- the ten browser suites on Ubuntu with Playwright Chromium;
+- the eleven browser suites on Ubuntu with Playwright Chromium;
 - on a `v*` tag, a release job that builds `page-capture-<version>.zip` from
   `extension/` and attaches it to the GitHub release.
 

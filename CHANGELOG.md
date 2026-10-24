@@ -8,6 +8,15 @@ entry below must always match (`npm run check` enforces it).
 
 ### Fixed
 
+- **Designs inside same-origin iframes are captured, not lost.** A page can show
+  its real design inside frames - an exported board, a dashboard card, an
+  embedded editor. The engine serialized the frame element and stopped, so the
+  paste contained empty rounded boxes. `js/embedded-frames.js` now rebuilds every
+  frame the page is allowed to read through the existing responsive-copy
+  capturer, translates it into the parent's coordinate space and hangs it under
+  the frame node, assets and fonts included. Cross-origin, sandboxed and opaque
+  (`blob:` from `file://`) frames are left exactly as before: the browser gives
+  no script access to those documents, so nothing is invented for them.
 - The service worker no longer attempts to fetch failed page images from remote
   hosts. Extension CSP deliberately allows `connect-src 'self'` only, so Chrome
   blocked those futile recovery requests and logged noisy CSP violations. Images
